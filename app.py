@@ -278,3 +278,45 @@ if st.session_state.is_completed:
     st.text_input("📌 영상 제목", value=st.session_state.yt_title)
     st.text_area("📝 영상 설명 (해시태그 포함)", value=st.session_state.yt_desc, height=150)
     st.text_input("🏷️ 태그 (쉼표로 구분)", value=st.session_state.yt_tags)
+
+# ==========================================
+# 🎉 완료 화면 (파일 증발 에러 방지 안전장치 추가)
+# ==========================================
+if st.session_state.is_completed:
+    st.divider()
+    
+    # 🌟 안전장치: 실제 서버에 파일이 살아있는지 검사합니다.
+    if not os.path.exists(st.session_state.main_video_path):
+        st.error("🚨 앗! 무료 서버의 메모리 부족으로 인해 만들어진 파일이 유실되었습니다. 새로고침(F5) 후 쇼츠 개수를 1~2개로 줄여서 다시 시도해주세요. 😭")
+        st.session_state.is_completed = False
+    else:
+        st.success("🎉 모든 영상이 성공적으로 렌더링되었습니다! 아래에서 확인 및 다운로드하세요.")
+        
+        st.subheader("📺 메인 영상 (16:9)")
+        st.video(st.session_state.main_video_path)
+        with open(st.session_state.main_video_path, "rb") as file:
+            st.download_button("⬇️ 메인 영상 다운로드 (.mp4)", data=file, file_name=f"{st.session_state.base_name}_Main.mp4", mime="video/mp4")
+
+        st.divider()
+        
+        st.subheader(f"📱 추출된 쇼츠 영상 ({len(st.session_state.shorts_paths)}개)")
+        cols = st.columns(len(st.session_state.shorts_paths))
+        for idx, (col, shorts_path) in enumerate(zip(cols, st.session_state.shorts_paths)):
+            with col:
+                # 쇼츠 파일도 살아있는지 개별 확인
+                if os.path.exists(shorts_path):
+                    st.video(shorts_path)
+                    with open(shorts_path, "rb") as file:
+                        st.download_button(f"⬇️ 쇼츠 {idx+1} 다운로드", data=file, file_name=f"{st.session_state.base_name}_Shorts_{idx+1}.mp4", mime="video/mp4", key=f"btn_shorts_{idx}")
+                else:
+                    st.error(f"쇼츠 {idx+1} 파일 유실됨")
+
+        st.divider()
+        
+        st.header("📋 유튜브 업로드용 정보 (복사해서 붙여넣기!)")
+        if st.session_state.clean_lyrics:
+            st.download_button("⬇️ 가사 텍스트 파일 다운로드 (유튜브 하단 자막용)", data=st.session_state.clean_lyrics, file_name=f"{st.session_state.base_name}_lyrics.txt", mime="text/plain")
+
+        st.text_input("📌 영상 제목", value=st.session_state.yt_title)
+        st.text_area("📝 영상 설명 (해시태그 포함)", value=st.session_state.yt_desc, height=150)
+        st.text_input("🏷️ 태그 (쉼표로 구분)", value=st.session_state.yt_tags)
