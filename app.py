@@ -2,181 +2,224 @@ import streamlit as st
 import requests
 import os
 import urllib.parse
+import re
+import random
+import gc
+import numpy as np
 from moviepy.editor import AudioFileClip, ImageClip
+import moviepy.audio.fx.all as afx
 from PIL import Image, ImageDraw, ImageFont
 
-st.set_page_config(page_title="AI 뮤직비디오 메이커", page_icon="🎵", layout="centered")
+st.set_page_config(page_title="AI 뮤직비디오 자동화 팩토리", page_icon="🎵", layout="wide")
 
-# 한글 제목이 깨지지 않도록 무료 폰트(나눔고딕 볼드체) 자동 다운로드
+# --- 메모리 유지 (Session State) ---
+if 'is_completed' not in st.session_state: st.session_state.is_completed = False
+if 'main_video_path' not in st.session_state: st.session_state.main_video_path = ""
+if 'shorts_paths' not in st.session_state: st.session_state.shorts_paths = [] # 쇼츠 리스트
+if 'clean_lyrics' not in st.session_state: st.session_state.clean_lyrics = ""
+if 'base_name' not in st.session_state: st.session_state.base_name = ""
+if 'yt_title' not in st.session_state: st.session_state.yt_title = ""
+if 'yt_desc' not in st.session_state: st.session_state.yt_desc = ""
+if 'yt_tags' not in st.session_state: st.session_state.yt_tags = ""
+
+# 폰트 다운로드
 font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
 font_path = "NanumGothicBold.ttf"
 if not os.path.exists(font_path):
-    with open(font_path, "wb") as f:
-        f.write(requests.get(font_url).content)
+    with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
-st.title("🎵 AI 뮤직비디오 & 가사 추출기")
-st.write("메뉴를 선택하면 AI가 영상을 만들고, 파일명(한글_영어)을 분석해 영상 상단에 제목을 새겨줍니다.")
+st.title("🎵 AI 뮤직비디오 공장 (하이라이트 자동추출)")
+st.write("음원의 에너지를 분석해 클라이맥스를 찾고, 메인 영상과 최대 4개의 쇼츠를 한 번에 만듭니다.")
 
-# --- 11개의 딕셔너리 (이전과 동일) ---
-pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "발라드 (Ballad)": "emotional ballad vibe", "알앤비/소울 (R&B/Soul)": "smooth R&B soul vibe", "힙합/랩 (Hip-hop)": "hip-hop culture, urban vibe", "어쿠스틱/인디 (Acoustic/Indie)": "acoustic indie folk", "신스팝/시티팝 (City Pop)": "synthpop, retro city pop vibe", "EDM/일렉트로닉 (EDM)": "edm, electronic dance music", "로파이 (Lo-Fi)": "lofi hip hop, chillhop aesthetic", "모던 락 (Modern Rock)": "modern rock band", "펑크/디스코 (Funk/Disco)": "funky disco", "재즈/블루스 (Jazz/Blues)": "classic jazz club", "앰비언트/뉴에이지 (Ambient)": "ambient music", "헤비메탈 (Heavy Metal)": "heavy metal", "레게/라틴 (Reggae/Latin)": "reggae, tropical latin", "트로트/전통 (Traditional)": "traditional korean pop"}
-ccm_genres = {"선택안함": "", "전통 찬송가 (Hymns)": "traditional hymns, classic church", "모던 워십 (Modern Worship)": "modern christian worship", "어쿠스틱 찬양 (Acoustic)": "acoustic worship, intimate prayer", "가스펠 콰이어 (Gospel Choir)": "joyful black gospel choir", "CCM 발라드 (Ballad)": "emotional christian ballad", "워십 락 (Worship Rock)": "christian rock", "크리스천 힙합 (Christian Hip-Hop)": "christian hip-hop", "R&B/소울 가스펠 (R&B Gospel)": "soulful christian R&B", "앰비언트/기도 음악 (Prayer)": "ambient worship, deep prayer meditation", "어린이/주일학교 (Children's)": "joyful children's sunday school", "컨트리 가스펠 (Country)": "country gospel", "신스팝 워십 (Synthpop)": "upbeat synthpop worship", "아카펠라 찬양 (A Cappella)": "a cappella worship", "피아노 묵상곡 (Piano Solo)": "peaceful piano worship", "오케스트라 찬양 (Orchestral)": "epic orchestral worship", "켈틱 워십 (Celtic)": "celtic christian worship"}
-moods = {"선택안함": "", "경건하고 홀리한 (Holy)": "holy, reverent, divine presence", "은혜롭고 따뜻한 (Graceful)": "graceful, warm, comforting", "몽환적이고 신비로운 (Dreamy)": "ethereal, dreamy, magical", "차분하고 우울한 (Calm/Sad)": "melancholic, somber, calm", "밝고 희망찬 (Joyful)": "joyful, uplifting, bright", "어둡고 긴장감 있는 (Dark)": "dark, eerie, suspenseful", "웅장하고 에픽한 (Epic)": "epic, majestic, cinematic", "평화롭고 힐링되는 (Peaceful)": "peaceful, relaxing, tranquil"}
-styles = {"선택안함": "", "실사 사진 (Photorealistic)": "photorealistic, 8k resolution", "스테인드글라스 (Stained Glass)": "beautiful stained glass art", "2D 애니메이션 (지브리 풍)": "studio ghibli style, anime art", "3D 애니메이션 (픽사 풍)": "3D render, pixar style", "수채화 (Watercolor)": "soft watercolor painting", "유화 (Oil Painting)": "classic oil painting", "미니멀리즘 (Minimalist)": "minimalist illustration", "레트로 픽셀 아트 (Pixel Art)": "16-bit pixel art"}
-lightings = {"선택안함": "", "성스러운 빛 (God Rays)": "god rays, divine light", "따스한 자연광 (Sunlight)": "natural sunlight, golden hour", "어두운 밤 (달빛/별빛)": "nighttime, moonlight", "화려한 네온사인 (Neon)": "vibrant neon lighting", "안개 낀/흐린 날 (Soft Light)": "foggy, soft diffused light", "영화 같은 무드등 (Cinematic)": "cinematic lighting, chiaroscuro", "역광 (실루엣 강조)": "backlit, strong silhouette"}
-colors = {"선택안함": "", "황금빛 톤 (Golden)": "golden color palette", "따뜻한 웜톤 (오렌지/브라운)": "warm color palette", "차가운 쿨톤 (블루/시안)": "cool color palette", "흑백/모노톤 (B&W)": "black and white, monochrome", "부드러운 파스텔 (Pastel)": "soft pastel colors", "빈티지 (빛바랜 느낌)": "vintage colors, sepia", "어둡고 칙칙한 (Dark)": "muted colors, desaturated"}
-cameras = {"선택안함": "", "클로즈업 (얼굴/사물 강조)": "extreme close-up shot", "전신 샷 (Full Body)": "full body shot", "풍경 위주 (Wide Shot)": "wide landscape shot", "로우 앵글 (아래에서 위로)": "low angle shot", "하이 앵글 (위에서 아래로)": "high angle shot", "드론 뷰 (하늘에서 본 풍경)": "drone photography, bird's eye view"}
-times = {"선택안함": "", "이른 새벽 (Dawn)": "early dawn, bluish morning light", "밝은 아침/정오 (Morning)": "bright morning", "해질녘/노을 (Sunset)": "sunset, beautiful evening sky", "푸른 저녁 (Blue Hour)": "blue hour, twilight", "깊은 밤 (Midnight)": "midnight, dark night sky"}
-weathers = {"선택안함": "", "맑고 쾌청한 (Clear)": "clear weather", "비 내리는 (Rainy)": "raining, wet streets", "눈 내리는 (Snowy)": "snowing, winter wonderland", "안개/연기 (Foggy)": "thick fog, mysterious mist", "흩날리는 꽃잎 (Petals)": "falling cherry blossom petals", "별이 쏟아지는 (Starry)": "starry night sky"}
-eras = {"선택안함": "", "현대/도심 (Modern)": "modern day, contemporary city", "근미래/SF (Cyberpunk)": "futuristic, cyberpunk city", "90년대 레트로 (90s Retro)": "1990s retro aesthetic", "중세 판타지 (Medieval)": "medieval fantasy world", "고대/신화 (Ancient)": "ancient times, mythological"}
-effects = {"선택안함": "", "필름 노이즈 (Film Grain)": "heavy film grain, vintage effect", "빛 번짐 (Lens Flare)": "lens flare, optical glare", "아웃포커싱 (Bokeh)": "shallow depth of field, bokeh", "글리치 (Glitch)": "digital glitch effect", "몽환적인 블러 (Soft Focus)": "soft focus, dreamlike blur"}
+# --- 오디오 하이라이트(클라이맥스) 추출 알고리즘 ---
+def find_highlights(audio_clip, num_highlights=1, window_sec=15, min_dist=25):
+    """오디오의 파형을 분석해 에너지가 가장 높은(후렴구) 구간의 시작 시간들을 반환합니다."""
+    try:
+        # 연산 속도와 메모리를 위해 샘플레이트를 낮춰서 배열로 변환
+        fps = 11025 
+        snd_array = audio_clip.to_soundarray(fps=fps)
+        if len(snd_array.shape) > 1:
+            snd_array = snd_array.mean(axis=1) # 스테레오를 모노로 병합
+            
+        window_size = int(window_sec * fps)
+        energies = []
+        
+        # 15초 단위로 쪼개어 RMS(소리 에너지/볼륨) 평균값 계산
+        for i in range(0, len(snd_array) - window_size, int(fps * 5)): # 5초 간격으로 스캔
+            chunk = snd_array[i:i+window_size]
+            rms = np.sqrt(np.mean(chunk**2))
+            energies.append((rms, i / fps))
+            
+        # 에너지가 높은 순으로 정렬
+        energies.sort(key=lambda x: x[0], reverse=True)
+        
+        highlights = []
+        for eng, t in energies:
+            # 기존에 찾은 하이라이트 구간과 최소 간격(min_dist) 이상 떨어져 있는지 확인 (중복 방지)
+            if all(abs(t - ht) > min_dist for ht in highlights):
+                # 영상이 곡 길이를 초과하지 않도록 보정
+                safe_t = min(t, max(0, audio_clip.duration - 60))
+                highlights.append(safe_t)
+            if len(highlights) >= num_highlights:
+                break
+                
+        # 곡이 너무 짧아서 구간을 다 못 찾은 경우 랜덤으로 채움
+        while len(highlights) < num_highlights:
+            highlights.append(random.randint(0, int(max(0, audio_clip.duration - 60))))
+            
+        return sorted(highlights) # 시간순 정렬
+    except Exception as e:
+        # 에러 발생 시 안전하게 기존 랜덤 방식 사용
+        return [random.randint(15, int(max(15, audio_clip.duration - 60))) for _ in range(num_highlights)]
 
-# --- 화면 구성 ---
-st.header("1. 음악 및 가사 업로드")
-st.info("💡 꿀팁: 파일명을 '한글제목_영어제목' (예: 은혜_Grace.wav)으로 올리면 영상 상단에 제목이 새겨집니다!")
-uploaded_audio = st.file_uploader("🎧 음원 파일 (WAV, MP3)", type=['wav', 'mp3'])
-lyrics = st.text_area("📝 가사 입력 (유튜브 하단 자막용)", height=100)
+# --- 이미지 생성 함수 ---
+def create_cover_image(prompt, width, height, title_text, output_path, seed):
+    encoded_prompt = urllib.parse.quote(prompt)
+    # seed 값을 추가하여 쇼츠마다 미세하게 다른 배경 이미지가 나오도록 설정
+    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
+    img_data = requests.get(url).content
+    with open(output_path, "wb") as f: f.write(img_data)
+    
+    img = Image.open(output_path).convert("RGBA")
+    draw = ImageDraw.Draw(img)
+    title_font = ImageFont.truetype(font_path, 65 if width == 1280 else 55)
+    try:
+        bbox = draw.textbbox((0, 0), title_text, font=title_font, align="center")
+        text_w = bbox[2] - bbox[0]
+    except:
+        text_w = 400
+    
+    x = (width - text_w) / 2
+    y = height * 0.1 
+    draw.multiline_text((x, y), title_text, font=title_font, fill="white", stroke_width=4, stroke_fill="black", align="center")
+    img.convert("RGB").save(output_path)
 
-st.header("2. 앨범 커버 100% 맞춤 설정")
-subject = st.text_input("🎯 메인 주제/사물 (선택)", placeholder="예: 십자가를 바라보는 소녀 (영어로 쓰면 완벽합니다)")
+# --- UI 및 메뉴 ---
+pop_genres = {"팝 (Pop)": "pop music vibe", "발라드 (Ballad)": "emotional ballad vibe", "R&B/Soul": "smooth R&B soul", "힙합 (Hip-hop)": "urban hip-hop", "어쿠스틱 (Acoustic)": "acoustic indie", "EDM": "electronic dance music", "로파이 (Lo-Fi)": "lofi hip hop chill"}
+ccm_genres = {"모던 워십": "modern christian worship", "전통 찬송가": "classic church hymns", "어쿠스틱 찬양": "acoustic worship", "CCM 발라드": "emotional christian ballad", "피아노 묵상": "peaceful piano worship prayer"}
+moods = {"은혜롭고 따뜻한": "graceful warm", "경건하고 홀리한": "holy divine presence", "몽환적인": "ethereal dreamy", "차분한": "melancholic calm", "희망찬": "joyful bright"}
+styles = {"실사 사진": "photorealistic 8k", "수채화 느낌": "soft watercolor", "지브리 애니풍": "studio ghibli anime art", "빛바랜 빈티지": "vintage cinematic"}
 
-st.subheader("🎸 1. 음악 장르 선택")
-tab1, tab2 = st.tabs(["대중음악 장르", "CCM (기독교 음악) 장르"])
-with tab1:
-    pop_choice = st.selectbox("대중음악에서 선택", list(pop_genres.keys()))
-with tab2:
-    ccm_choice = st.selectbox("CCM에서 선택", list(ccm_genres.keys()))
+st.sidebar.header("1. 기본 설정")
+uploaded_audio = st.sidebar.file_uploader("🎧 음원 업로드 (WAV, MP3)", type=['wav', 'mp3'])
+num_shorts = st.sidebar.slider("📱 생성할 쇼츠 개수", min_value=1, max_value=4, value=2, help="음원의 에너지를 분석해 알아서 다른 구간으로 뽑아줍니다.")
+lyrics = st.sidebar.text_area("📝 가사 복사 (대괄호 자동삭제)", height=150)
 
-st.subheader("🎨 2. 기본 비주얼 설정")
-col1, col2 = st.columns(2)
+st.header("🎨 2. 앨범 커버 분위기 설정")
+subject = st.text_input("🎯 메인 주제 (선택)", placeholder="예: 햇살이 비치는 교회 창문")
+
+col1, col2, col3 = st.columns(3)
 with col1:
-    mood_choice = st.selectbox("✨ 전체 분위기", list(moods.keys()))
-    style_choice = st.selectbox("🖌️ 그림 스타일", list(styles.keys()))
+    is_ccm = st.checkbox("⛪ CCM 곡인가요?", value=True)
+    genre_choice = st.selectbox("장르", list(ccm_genres.keys()) if is_ccm else list(pop_genres.keys()))
+    genre_prompt = ccm_genres[genre_choice] if is_ccm else pop_genres[genre_choice]
 with col2:
-    light_choice = st.selectbox("💡 조명 느낌", list(lightings.keys()))
-    color_choice = st.selectbox("🌈 색감 (팔레트)", list(colors.keys()))
-
-with st.expander("🎬 3. 디테일 연출 설정 (클릭해서 펼치기)"):
-    col3, col4 = st.columns(2)
-    with col3:
-        camera_choice = st.selectbox("🎥 카메라 앵글", list(cameras.keys()))
-        time_choice = st.selectbox("⏰ 시간대", list(times.keys()))
-        weather_choice = st.selectbox("☁️ 날씨/환경", list(weathers.keys()))
-    with col4:
-        era_choice = st.selectbox("🏰 시대적 배경", list(eras.keys()))
-        effect_choice = st.selectbox("✨ 특수효과", list(effects.keys()))
+    mood_choice = st.selectbox("✨ 분위기", list(moods.keys()))
+with col3:
+    style_choice = st.selectbox("🖌️ 스타일", list(styles.keys()))
 
 # --- 렌더링 로직 ---
-if st.button("🚀 비디오 및 가사 파일 생성하기", use_container_width=True):
+if st.button("🚀 비디오 팩토리 가동 (메인 + 쇼츠 생성)", use_container_width=True):
     if uploaded_audio is not None:
-        with st.spinner("작업을 진행 중입니다. (약 1~3분 소요)"):
+        # 영상이 최대 5개 만들어지므로 시간이 제법 소요됩니다.
+        with st.spinner(f"음원을 분석하고 메인 영상과 {num_shorts}개의 쇼츠를 생성 중입니다. (약 3~7분 소요 ☕)"):
             try:
-                # 1) 파일명 파싱 (한글제목_영어제목 추출)
-                original_filename = uploaded_audio.name
-                base_name = os.path.splitext(original_filename)[0]
+                # 초기화
+                st.session_state.shorts_paths = []
+                base_name = os.path.splitext(uploaded_audio.name)[0]
+                display_title = f"{base_name.split('_')[0]}\n{base_name.split('_')[1]}" if '_' in base_name else base_name
                 
-                # '_' 기준으로 제목 분리
-                if '_' in base_name:
-                    title_ko, title_en = base_name.split('_', 1)
-                    display_title = f"{title_ko}\n{title_en}"
-                else:
-                    display_title = base_name # '_'가 없으면 그냥 원래 이름 사용
+                clean_lyrics_list = [line.strip() for line in re.sub(r'\[.*?\]', '', lyrics).split('\n') if line.strip()]
+                final_clean_lyrics = '\n'.join(clean_lyrics_list)
 
-                # 음원 임시 저장
-                audio_extension = original_filename.split('.')[-1]
-                audio_path = f"temp_audio.{audio_extension}"
-                with open(audio_path, "wb") as f:
-                    f.write(uploaded_audio.getbuffer())
-                    
-                # 2) 프롬프트 조합 및 이미지 생성
-                st.info("1/3: AI가 배경 이미지를 생성하고 있습니다...")
-                selected_genre = ccm_genres[ccm_choice] if ccm_choice != "선택안함" else pop_genres[pop_choice]
-                prompt_parts = [
-                    subject, selected_genre, moods[mood_choice], styles[style_choice], 
-                    lightings[light_choice], colors[color_choice], cameras[camera_choice],
-                    times[time_choice], weathers[weather_choice], eras[era_choice], effects[effect_choice],
-                    "masterpiece", "best quality", "4k resolution"
-                ]
+                audio_path = "temp_audio.wav"
+                with open(audio_path, "wb") as f: f.write(uploaded_audio.getbuffer())
+                
+                full_audio = AudioFileClip(audio_path)
+                
+                prompt_parts = [subject, genre_prompt, moods[mood_choice], styles[style_choice], "masterpiece", "best quality"]
                 final_prompt = ", ".join([p for p in prompt_parts if p])
-                encoded_prompt = urllib.parse.quote(final_prompt)
-                
-                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&nologo=true"
-                response = requests.get(image_url)
-                
-                raw_image_path = "temp_raw_image.jpg"
-                with open(raw_image_path, "wb") as f:
-                    f.write(response.content)
 
-                # 3) 🌟 이미지 상단에 파싱된 제목 새기기 (Pillow 사용)
-                st.info("2/3: 앨범 커버에 곡 제목을 새기고 있습니다...")
-                img = Image.open(raw_image_path).convert("RGBA")
-                draw = ImageDraw.Draw(img)
-                title_font = ImageFont.truetype(font_path, 65) # 폰트 크기 65
+                # [1] 메인 영상 생성
+                st.toast("🎬 1단계: 메인 영상 제작 중...")
+                main_img_path = "temp_main_img.jpg"
+                create_cover_image(final_prompt, 1280, 720, display_title, main_img_path, seed=123)
+                main_video_path = "output_main_video.mp4"
+                ImageClip(main_img_path).set_duration(full_audio.duration).set_audio(full_audio).write_videofile(main_video_path, fps=1, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1)
                 
-                # 글씨 크기 계산 및 위치 잡기 (상단 중앙)
-                try:
-                    bbox = draw.textbbox((0, 0), display_title, font=title_font, align="center")
-                    text_w = bbox[2] - bbox[0]
-                except:
-                    text_w = 400
+                # [2] 하이라이트 분석
+                st.toast("🔍 2단계: AI가 음원의 클라이맥스(하이라이트)를 분석 중입니다...")
+                highlight_times = find_highlights(full_audio, num_shorts)
                 
-                W, H = img.size
-                x = (W - text_w) / 2
-                y = 50 # 상단에서 50픽셀 떨어진 위치
-                
-                # 글씨 쓰기 (어떤 배경에서도 잘 보이게 검은색 두꺼운 테두리 + 흰 글씨)
-                draw.multiline_text((x, y), display_title, font=title_font, fill="white", stroke_width=4, stroke_fill="black", align="center")
-                
-                final_image_path = "temp_final_image.jpg"
-                img.convert("RGB").save(final_image_path)
-                st.image(final_image_path, caption=f"제목이 새겨진 앨범 커버: {base_name}")
+                # [3] 쇼츠 영상 연속 생성
+                for i, start_time in enumerate(highlight_times):
+                    st.toast(f"📱 3단계: 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
+                    
+                    shorts_img_path = f"temp_shorts_img_{i}.jpg"
+                    # 쇼츠마다 그림이 조금씩 다르게 나오도록 난수(seed) 부여
+                    create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999))
+                    
+                    short_dur = random.randint(35, 55) # 35~55초 사이의 자연스러운 길이
+                    shorts_audio = full_audio.subclip(start_time, min(start_time + short_dur, full_audio.duration))
+                    # 오디오 페이드 인/아웃 부드럽게 적용
+                    shorts_audio = shorts_audio.fx(afx.audio_fadein, 1.5).fx(afx.audio_fadeout, 3.0)
+                    
+                    shorts_video_path = f"output_shorts_{i+1}.mp4"
+                    ImageClip(shorts_img_path).set_duration(shorts_audio.duration).set_audio(shorts_audio).write_videofile(shorts_video_path, fps=1, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1)
+                    
+                    st.session_state.shorts_paths.append(shorts_video_path)
+                    
+                    # 메모리 확보 (무료 서버 안 터지게 필수)
+                    gc.collect()
 
-                # 4) 동영상 렌더링 (서버 보호 세팅)
-                st.info("3/3: 음악과 이미지를 합쳐 영상을 렌더링하고 있습니다...")
-                video_path = "output_video.mp4"
-                
-                audio_clip = AudioFileClip(audio_path)
-                image_clip = ImageClip(final_image_path).set_duration(audio_clip.duration)
-                video_clip = image_clip.set_audio(audio_clip)
-                
-                video_clip.write_videofile(
-                    video_path, 
-                    fps=1, 
-                    codec="libx264", 
-                    audio_codec="aac",
-                    preset="ultrafast",
-                    threads=1
-                )
-                
-                st.success("🎉 모든 작업이 완료되었습니다!")
+                # 유튜브 메타데이터 생성
+                st.session_state.yt_title = f"{display_title.replace(chr(10), ' - ')} | {mood_choice} 감성 플레이리스트"
+                yt_desc_base = f"오늘 나눌 음악은 '{base_name.split('_')[0]}' 입니다.\n{mood_choice} 마음을 담아 준비했습니다.\n함께 들으시며 위로와 평안을 얻으시길 바랍니다. 🙏\n\n구독과 좋아요는 큰 힘이 됩니다!" if is_ccm else f"오늘의 추천곡 '{base_name.split('_')[0]}' 입니다.\n{mood_choice} 감성으로 작업하거나 쉴 때 듣기 좋아요.\n오늘 하루도 이 음악과 기분 좋게 보내세요! 🎧"
+                st.session_state.yt_desc = yt_desc_base + f"\n\n# {base_name.split('_')[0].replace(' ', '')} #{mood_choice.split(' ')[0]}"
+                st.session_state.yt_tags = f"{base_name.replace('_', ', ')}, 음악추천, 플레이리스트, {mood_choice.split(' ')[0]}음악, 힐링"
 
-                # 5) 다운로드 섹션
-                st.header("3. 완성된 파일 다운로드")
-                dl_col1, dl_col2 = st.columns(2)
-                
-                with dl_col1:
-                    with open(video_path, "rb") as file:
-                        st.download_button(
-                            label="🎥 유튜브용 동영상 다운로드 (.mp4)",
-                            data=file,
-                            file_name=f"{base_name}_MusicVideo.mp4",
-                            mime="video/mp4",
-                            use_container_width=True
-                        )
-                
-                with dl_col2:
-                    if lyrics: 
-                        st.download_button(
-                            label="📝 자막용 가사 다운로드 (.txt)",
-                            data=lyrics,
-                            file_name=f"{base_name}_lyrics.txt",
-                            mime="text/plain",
-                            use_container_width=True
-                        )
-                    else:
-                        st.write("입력된 가사가 없습니다.")
+                full_audio.close()
+                st.session_state.is_completed = True
+                st.session_state.base_name = base_name
 
             except Exception as e:
                 st.error(f"오류가 발생했습니다: {e}")
-                
     else:
-        st.warning("⚠️ 음원 파일(WAV 또는 MP3)을 업로드해주세요.")
+        st.warning("⚠️ 왼쪽 메뉴에서 음원 파일을 업로드해주세요.")
+
+# ==========================================
+# 🎉 완료 화면 (미리보기 및 다운로드)
+# ==========================================
+if st.session_state.is_completed:
+    st.divider()
+    st.success("🎉 모든 작업이 완벽하게 끝났습니다! 아래에서 확인하세요.")
+    
+    # 1. 메인 영상 영역
+    st.subheader("📺 메인 영상 (16:9)")
+    st.video(st.session_state.main_video_path)
+    with open(st.session_state.main_video_path, "rb") as file:
+        st.download_button("⬇️ 메인 영상 다운로드 (.mp4)", data=file, file_name=f"{st.session_state.base_name}_Main.mp4", mime="video/mp4")
+
+    st.divider()
+    
+    # 2. 쇼츠 영상 영역 (그리드로 배치)
+    st.subheader(f"📱 추출된 쇼츠 영상 ({len(st.session_state.shorts_paths)}개) - AI 하이라이트 분석 적용")
+    
+    # 쇼츠 개수에 맞춰 화면을 쪼개서 보여줌
+    cols = st.columns(len(st.session_state.shorts_paths))
+    for idx, (col, shorts_path) in enumerate(zip(cols, st.session_state.shorts_paths)):
+        with col:
+            st.video(shorts_path)
+            with open(shorts_path, "rb") as file:
+                st.download_button(f"⬇️ 쇼츠 {idx+1} 다운로드", data=file, file_name=f"{st.session_state.base_name}_Shorts_{idx+1}.mp4", mime="video/mp4", key=f"btn_shorts_{idx}")
+
+    st.divider()
+    
+    # 3. 유튜브 업로드 정보
+    st.header("📋 유튜브 업로드용 정보 (그대로 복사하세요!)")
+    if st.session_state.clean_lyrics:
+        st.download_button("⬇️ 가사 텍스트 파일 다운로드 (유튜브 자막용)", data=st.session_state.clean_lyrics, file_name=f"{st.session_state.base_name}_lyrics.txt", mime="text/plain")
+
+    st.text_input("📌 영상 제목", value=st.session_state.yt_title)
+    st.text_area("📝 영상 설명 (해시태그 포함)", value=st.session_state.yt_desc, height=150)
+    st.text_input("🏷️ 태그 (쉼표로 구분)", value=st.session_state.yt_tags)
