@@ -122,7 +122,7 @@ def create_cover_image(prompt, width, height, title_text, output_path, seed):
 # ==========================================
 st.sidebar.header("1. 기본 설정")
 uploaded_audio = st.sidebar.file_uploader("🎧 음원 파일 (WAV, MP3)", type=['wav', 'mp3'])
-num_shorts = st.sidebar.slider("📱 생성할 쇼츠 개수", min_value=1, max_value=4, value=2)
+num_shorts = st.sidebar.slider("📱 생성할 쇼츠 개수", min_value=0, max_value=4, value=0)
 lyrics = st.sidebar.text_area("📝 가사 입력 (대괄호 자동 삭제)", height=150)
 
 st.header("🎨 2. 앨범 커버 초정밀 연출")
