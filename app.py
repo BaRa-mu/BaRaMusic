@@ -29,8 +29,8 @@ font_path = "NanumGothicBold.ttf"
 if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
-st.title("🎵 AI 뮤직비디오 팩토리 (가사 마스킹 & 쇼츠 최적화)")
-st.write("가사가 지정된 영역에서만 스크롤되며, 쇼츠 생성 에러가 완벽히 수정되었습니다.")
+st.title("🎵 AI 뮤직비디오 팩토리 (이미지 오류 무적 패치)")
+st.write("이미지 서버가 불안정해도 영상 제작이 중단되지 않는 버전입니다.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -51,7 +51,7 @@ class StreamlitProgressLogger(ProgressBarLogger):
             self.st_text.text(f"⏳ {self.prefix} - {task_type}: {int(percent * 100)}%")
 
 # ==========================================
-# 🎯 프롬프트 사전 (생략 방지)
+# 🎯 프롬프트 사전
 # ==========================================
 pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz", "보사노바": "bossa nova", "로파이": "lofi hip hop", "시네마틱 / OST": "cinematic soundtrack"}
 ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship"}
@@ -79,26 +79,41 @@ def find_highlights_lite(duration_sec, num_highlights=0):
     return highlights
 
 def create_cover_image(prompt, width, height, title_text, output_path, seed):
-    encoded_prompt = urllib.parse.quote(prompt)
+    # 프롬프트 정리 (줄바꿈 등으로 URL이 깨지는 것 방지)
+    safe_prompt = re.sub(r'\s+', ' ', prompt).strip()
+    encoded_prompt = urllib.parse.quote(safe_prompt)
     url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
-    img_data = requests.get(url, timeout=30).content
-    with open(output_path, "wb") as f: f.write(img_data)
     
-    img = Image.open(output_path).convert("RGBA")
+    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+    
+    try:
+        # 🔥 이미지 서버에서 이미지를 제대로 받아오는지 확인
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        if 'image' not in response.headers.get('content-type', '').lower():
+            raise ValueError("API 서버가 이미지가 아닌 데이터를 반환했습니다.")
+            
+        with open(output_path, "wb") as f: 
+            f.write(response.content)
+            
+        img = Image.open(output_path).convert("RGBA")
+        
+    except Exception as e:
+        # 🔥 에러 발생 시 앱을 터뜨리지 않고 어두운 배경색을 자동 생성하는 무적 방어막
+        st.toast(f"⚠️ 이미지 서버 혼잡으로 기본 배경을 사용합니다.")
+        img = Image.new("RGBA", (width, height), (35, 35, 40, 255))
+    
     draw = ImageDraw.Draw(img)
-    
-    # 🔥 제목 크기 축소 (1280일 땐 40, 720일 땐 32)
     title_font = ImageFont.truetype(font_path, 40 if width == 1280 else 32)
-    
-    # 화면 정중앙 (anchor="ma" 적용)
     x = width / 2
-    y = height * 0.12 # 위에서 12% 위치
+    y = height * 0.12 
     
     draw.multiline_text((x, y), title_text, font=title_font, fill="white", stroke_width=3, stroke_fill="black", align="center", anchor="ma")
     img.convert("RGB").save(output_path)
     img.close()
 
-# 🎬 🔥 개선된 스크롤 함수 (마스크 기법 및 메모리 정리 적용)
+# 🎬 스크롤 함수 (마스크 기법)
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
@@ -111,7 +126,6 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         base_img.close()
         return
 
-    # 🔥 가사 폰트 크기 대폭 축소 (Main 22, Shorts 20)
     lyric_font_size = 22 if width == 1280 else 20
     lyric_font = ImageFont.truetype(font_path, lyric_font_size)
     line_spacing = 2.0
@@ -125,7 +139,6 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     step_y = line_height * line_spacing
     total_text_height = len(lines) * step_y
     
-    # 🔥 마스킹 윈도우(창문) 좌표 설정
     window_top = int(height * 0.25)   # 상단 25% (제목 아래에서 사라짐)
     window_bottom = int(height * 0.95) # 하단 95% (아래 5% 지점에서 나타남)
     window_height = window_bottom - window_top
@@ -133,32 +146,24 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     def make_frame(t):
         frame_img = base_img.copy()
         
-        # 🔥 투명한 레이어(창문) 생성
         overlay = Image.new("RGBA", (width, window_height), (0, 0, 0, 0))
         draw_overlay = ImageDraw.Draw(overlay)
         
         progress = t / duration
-        # 창문 내부에서의 Y축 스크롤 계산
         current_y = window_height - (progress * (window_height + total_text_height))
         
         for i, line in enumerate(lines):
             lyric_y = current_y + (i * step_y)
-            # 창문(overlay) 범위를 벗어난 글씨는 아예 그리지 않음 (메모리 및 속도 최적화)
             if -50 < lyric_y < window_height + 50:
                 draw_overlay.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", align="center", anchor="ma")
         
-        # 🔥 완성된 창문을 베이스 이미지에 덮어쓰기 (클리핑 효과 완벽 구현)
         frame_img.paste(overlay, (0, window_top), overlay)
-        
         result_array = np.array(frame_img.convert("RGB"))
         
-        # 🔥 매 프레임마다 완벽한 메모리 해제 (무료서버 램 폭파 방지)
         overlay.close()
         frame_img.close()
-        
         return result_array
 
-    # 10 fps 적용 (메모리 절약과 부드러움의 타협점)
     video_clip = VideoClip(make_frame, duration=duration).set_audio(audio_clip)
     video_clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1, logger=logger)
     
@@ -250,7 +255,7 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720)
             
             st.session_state.main_video_path = main_video_path 
-            gc.collect() # 램 확보
+            gc.collect() 
 
             # [작업 3] 쇼츠 추출 및 렌더링
             if num_shorts > 0:
@@ -267,11 +272,10 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
                     create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999))
                     
                     short_dur = min(random.randint(35, 55), audio_duration - start_time)
-                    if short_dur < 5: short_dur = 5 # 너무 짧은 오디오 잘림 방지
+                    if short_dur < 5: short_dur = 5 
                     
                     shorts_audio = full_audio.subclip(start_time, start_time + short_dur)
                     
-                    # 🔥 에러 방지: 오디오 길이에 맞춰 페이드아웃 길이 자동 조절
                     fade_dur = min(1.5, shorts_audio.duration / 3.0)
                     shorts_audio = shorts_audio.fx(afx.audio_fadein, fade_dur).fx(afx.audio_fadeout, fade_dur)
                     
@@ -282,7 +286,7 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
                     
                     shorts_audio.close()
                     st.session_state.shorts_paths.append(shorts_video_path)
-                    gc.collect() # 램 확보
+                    gc.collect() 
 
             # 메타데이터 생성
             is_ccm_selected = ccm_choice != "선택안함"
