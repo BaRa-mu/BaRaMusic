@@ -8,7 +8,7 @@ import numpy as np
 from datetime import datetime, timedelta, timezone
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip
 import moviepy.audio.fx.all as afx
-from PIL import Image, ImageDraw, ImageFont, ImageChops  # ImageChops 추가됨 (블러 효과용)
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 from proglog import ProgressBarLogger
 
 st.set_page_config(page_title="은혜로운 찬양 팩토리", page_icon="🕊️", layout="wide")
@@ -27,7 +27,7 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("시네마틱 페이드 가사 효과가 적용되었습니다. 렌더링 후 내 채널에 직접 업로드하세요.")
+st.write("전주/후주를 제외하고 원하는 구간에만 가사가 스크롤되도록 싱크 조절 기능이 추가되었습니다.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -46,6 +46,23 @@ class StreamlitProgressLogger(ProgressBarLogger):
             self.st_bar.progress(percent)
             task_type = "오디오 합성 중" if bar == 'chunk' else "비디오 렌더링 중"
             self.st_text.text(f"⏳ {self.prefix} - {task_type}: {int(percent * 100)}%")
+
+# ==========================================
+# ⚙️ 시간 변환 유틸리티
+# ==========================================
+def parse_time_to_sec(time_str, default_val):
+    """ '00:15' 같은 문자열을 초 단위(15) 정수로 변환합니다. """
+    try:
+        time_str = time_str.strip()
+        if not time_str:
+            return default_val
+        if ":" in time_str:
+            m, s = time_str.split(":")
+            return int(m) * 60 + int(s)
+        else:
+            return int(time_str)
+    except:
+        return default_val
 
 # ==========================================
 # ⚙️ 핵심 알고리즘 
@@ -78,10 +95,14 @@ def process_user_image(uploaded_file, width, height, output_path):
     img.convert("RGB").save(output_path)
     img.close()
 
-# 🔥 시네마틱 가사 스크롤 렌더링 (블러/페이드 효과 & 60% 제한)
-def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
+# 🔥 시네마틱 가사 스크롤 렌더링 (싱크 타이머 적용)
+def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0, end_sec=None):
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
+    
+    if end_sec is None or end_sec <= start_sec or end_sec > duration:
+        end_sec = duration
+
     lines = lyrics_text.rstrip().split('\n') 
     
     if not lyrics_text.strip():
@@ -104,28 +125,23 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     step_y = line_height * line_spacing
     total_text_height = int(len(lines) * step_y)
     
-    # 🌟 스크롤 창문 영역 변경 (상단 60% 지점에서부터 하단 95% 지점까지만 표시)
-    window_top = int(height * 0.60)   
+    window_top = int(height * 0.40)   
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
-    # 🌟 시네마틱 페이드(블러) 마스크 사전 생성 (한 번만 연산)
     gradient_mask = Image.new("L", (width, window_height), 255)
     draw_grad = ImageDraw.Draw(gradient_mask)
-    fade_height = int(window_height * 0.4) # 위아래 40% 영역을 부드럽게 그라데이션 처리
+    fade_height = int(window_height * 0.4) 
 
-    # 위쪽으로 사라질 때 서서히 투명해짐
     for y in range(fade_height):
         alpha = int((y / fade_height) * 255)
         draw_grad.line((0, y, width, y), fill=alpha)
         
-    # 아래쪽에서 나타날 때 서서히 진해짐
     for y in range(window_height - fade_height, window_height):
         dist_from_bottom = window_height - y
         alpha = int((dist_from_bottom / fade_height) * 255)
         draw_grad.line((0, y, width, y), fill=alpha)
 
-    # 긴 텍스트 도화지 생성
     long_img_height = window_height + total_text_height + window_height
     long_lyrics_img = Image.new("RGBA", (width, int(long_img_height)), (0, 0, 0, 0))
     draw_long = ImageDraw.Draw(long_lyrics_img)
@@ -136,11 +152,19 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
 
     def make_frame(t):
         frame_img = base_img.copy()
-        progress = t / duration
+        
+        # 🌟 가사 싱크 타이머 로직 적용
+        if t < start_sec:
+            progress = 0.0 # 시작 시간 전까지는 가사가 맨 아래 숨어서 대기
+        elif t > end_sec:
+            progress = 1.0 # 종료 시간 이후로는 가사가 맨 위로 다 올라가서 투명해짐
+        else:
+            scroll_duration = end_sec - start_sec
+            progress = (t - start_sec) / scroll_duration # 지정된 구간 동안만 정확히 스크롤
+            
         viewport_y = int(progress * (window_height + total_text_height))
         visible_lyrics = long_lyrics_img.crop((0, viewport_y, width, viewport_y + window_height))
         
-        # 🌟 여기서 마법 발생! 텍스트 이미지에 그라데이션 마스크를 곱해서 자연스럽게 사라지게 만듦
         current_alpha = visible_lyrics.getchannel('A')
         blended_alpha = ImageChops.multiply(current_alpha, gradient_mask)
         visible_lyrics.putalpha(blended_alpha)
@@ -192,7 +216,7 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
                 "title": title,
                 "description": description,
                 "tags": [t.strip() for t in tags.split(",") if t.strip()],
-                "categoryId": "10" # Music
+                "categoryId": "10" 
             },
             "status": {
                 "privacyStatus": privacy_status
@@ -234,7 +258,15 @@ if num_shorts > 0:
         uploaded_shorts_imgs.append(upl)
 
 st.sidebar.divider()
-lyrics = st.sidebar.text_area("📝 가사 입력 (메인 영상에만 적용됨. []는 자동삭제)", height=200)
+lyrics = st.sidebar.text_area("📝 가사 입력 (메인 영상에만 적용. []는 자동삭제)", height=150)
+
+# 🌟 가사 싱크 타이머 UI 추가
+st.sidebar.write("⏱️ 가사 스크롤 싱크 조절 (선택)")
+col_t1, col_t2 = st.sidebar.columns(2)
+with col_t1:
+    sync_start = st.text_input("시작 (예: 00:15)", placeholder="00:00")
+with col_t2:
+    sync_end = st.text_input("종료 (예: 04:10)", placeholder="비워두면 곡 끝까지")
 
 # ==========================================
 # 🚀 렌더링 시작 및 실시간 모니터링
@@ -272,6 +304,10 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             
             full_audio = AudioFileClip(audio_path)
             audio_duration = full_audio.duration
+            
+            # 🌟 사용자가 입력한 싱크 시간을 초 단위로 변환
+            start_sec = parse_time_to_sec(sync_start, 0)
+            end_sec = parse_time_to_sec(sync_end, audio_duration)
 
             if generate_main:
                 step_title.markdown("#### 🎬 [1단계] 메인 영상(16:9) 렌더링 중...")
@@ -280,7 +316,9 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 
                 main_video_path = "output_main_video.mp4"
                 main_logger = StreamlitProgressLogger(progress_bar, progress_text, "메인 영상")
-                generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720)
+                
+                # 🌟 싱크 타이머 변수 전달
+                generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720, start_sec=start_sec, end_sec=end_sec)
                 
                 st.session_state.main_video_path = main_video_path 
                 del main_logger
@@ -366,8 +404,7 @@ if st.session_state.is_completed:
 
         st.divider()
         
-        # 🔥 클라우드용 유튜브 다이렉트 업로드 섹션
-        st.header("🚀 유튜브 다이렉트 예약/업로드")
+        st.header("🚀 유튜브 다이렉트 업로드")
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
