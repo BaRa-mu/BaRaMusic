@@ -10,7 +10,7 @@ import moviepy.audio.fx.all as afx
 from PIL import Image, ImageDraw, ImageFont
 from proglog import ProgressBarLogger
 
-st.set_page_config(page_title="AI 뮤직비디오 팩토리 (초고속 안정화 버전)", page_icon="🎵", layout="wide")
+st.set_page_config(page_title="AI 뮤직비디오 팩토리", page_icon="🎵", layout="wide")
 
 # --- 💾 메모리 유지 ---
 if 'is_completed' not in st.session_state: st.session_state.is_completed = False
@@ -25,8 +25,8 @@ font_path = "NanumGothicBold.ttf"
 if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
-st.title("🎵 뮤직비디오 팩토리 (수동 이미지 & 다이렉트 업로드)")
-st.write("메인 영상(가사O)과 쇼츠(가사X)를 분리하여 메모리 부족 문제를 완벽히 해결했습니다.")
+st.title("🎵 뮤직비디오 팩토리 (클라우드 완벽 지원)")
+st.write("메인 영상(가사O)과 쇼츠(가사X)를 분리하고, 클라우드 환경에서도 안전하게 유튜브로 업로드할 수 있습니다.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -77,13 +77,11 @@ def process_user_image(uploaded_file, width, height, output_path):
     img.convert("RGB").save(output_path)
     img.close()
 
-# 🔥 RAM 폭파 방지 렌더링 (가사가 없으면 즉시 초고속 렌더링으로 전환됨)
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
     lines = lyrics_text.rstrip().split('\n') 
     
-    # 🌟 쇼츠처럼 가사(lyrics_text)가 없으면 무거운 프레임 연산을 아예 생략합니다! (초고속/저메모리)
     if not lyrics_text.strip():
         clip = ImageClip(np.array(base_img.convert("RGB"))).set_duration(duration).set_audio(audio_clip)
         clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
@@ -91,7 +89,6 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         base_img.close()
         return
 
-    # 메인 영상용 가사 스크롤 연산
     lyric_font_size = 22 if width == 1280 else 20
     lyric_font = ImageFont.truetype(font_path, lyric_font_size)
     line_spacing = 2.0
@@ -138,34 +135,31 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     long_lyrics_img.close()
 
 # ==========================================
-# 🚀 유튜브 다이렉트 업로드 함수
+# 🚀 클라우드 전용 유튜브 다이렉트 업로드 함수
 # ==========================================
 def upload_to_youtube(video_path, title, description, tags, privacy_status):
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
-        from google_auth_oauthlib.flow import InstalledAppFlow
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
     except ImportError:
-        return False, "구글 API 라이브러리가 없습니다. 터미널에 `pip install google-api-python-client google-auth-oauthlib google-auth-httplib2` 를 입력하세요."
+        return False, "구글 API 라이브러리가 없습니다. requirements.txt에 google-api-python-client, google-auth-oauthlib 를 추가하세요."
 
-    SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
-    creds = None
+    # 클라우드 환경에서는 무조건 업로드된 token.json을 사용합니다.
+    if not os.path.exists("token.json"):
+        return False, "token.json 파일이 업로드되지 않았습니다."
 
-    if os.path.exists("token.json"):
-        creds = Credentials.from_authorized_user_file("token.json", SCOPES)
+    creds = Credentials.from_authorized_user_file("token.json", ["https://www.googleapis.com/auth/youtube.upload"])
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
+            # 갱신된 토큰 덮어쓰기 (클라우드 임시 메모리)
+            with open("token.json", "w") as token:
+                token.write(creds.to_json())
         else:
-            if not os.path.exists("client_secrets.json"):
-                return False, "🚨 앱 폴더에 `client_secrets.json` 파일이 없습니다. 폴더에 넣어주세요."
-            flow = InstalledAppFlow.from_client_secrets_file("client_secrets.json", SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open("token.json", "w") as token:
-            token.write(creds.to_json())
+            return False, "토큰이 만료되었거나 유효하지 않습니다. PC에서 token.json을 새로 만들어서 업로드해주세요."
 
     try:
         youtube = build("youtube", "v3", credentials=creds)
@@ -194,7 +188,6 @@ uploaded_audio = st.sidebar.file_uploader("🎧 음원 파일 (WAV, MP3)", type=
 st.sidebar.divider()
 st.sidebar.header("2. 생성 항목 선택")
 
-# 메인 영상 생성 여부 토글
 generate_main = st.sidebar.checkbox("📺 메인 영상(16:9) 생성하기", value=True)
 uploaded_main_img = None
 if generate_main:
@@ -211,7 +204,6 @@ if num_shorts > 0:
         uploaded_shorts_imgs.append(upl)
 
 st.sidebar.divider()
-# 🌟 가사 설명 업데이트: 메인 영상에만 적용됨을 명시
 lyrics = st.sidebar.text_area("📝 가사 입력 (메인 영상에만 적용됨. []는 자동삭제)", height=200)
 
 # ==========================================
@@ -251,7 +243,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             full_audio = AudioFileClip(audio_path)
             audio_duration = full_audio.duration
 
-            # [작업 1] 메인 영상 렌더링
             if generate_main:
                 step_title.markdown("#### 🎬 [1단계] 메인 영상(16:9) 렌더링 중...")
                 main_img_path = "temp_main_img.png"
@@ -267,7 +258,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             else:
                 step_title.markdown("#### ⏭️ 메인 영상 생성 건너뜀 (쇼츠 전용 모드)")
 
-            # [작업 2] 쇼츠 추출 및 렌더링
             if num_shorts > 0:
                 progress_bar.progress(0)
                 progress_text.empty()
@@ -291,7 +281,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
                     
-                    # 🌟 핵심: 쇼츠에는 가사 변수 위치에 빈 문자열("")을 넘겨서 스크롤 연산을 완벽 차단!
+                    # 🌟 쇼츠는 가사를 비워서 전송 (스크롤 차단)
                     generate_video_with_lyrics(shorts_img_path, shorts_audio, "", shorts_video_path, shorts_logger, 720, 1280)
                     
                     shorts_audio.close()
@@ -307,7 +297,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             st.error(f"오류가 발생했습니다: {e}")
 
 # ==========================================
-# 🎉 완료 화면 및 유튜브 다이렉트 업로드
+# 🎉 완료 화면 및 클라우드 안전 유튜브 업로드
 # ==========================================
 if st.session_state.is_completed:
     st.divider()
@@ -350,29 +340,45 @@ if st.session_state.is_completed:
 
         st.divider()
         
-        st.header("🚀 유튜브 다이렉트 업로드")
-        st.info("이 기능을 사용하려면 폴더에 `client_secrets.json` 파일이 있어야 합니다.")
+        # 🔥 클라우드용 안전한 유튜브 다이렉트 업로드 섹션
+        st.header("🚀 안전한 유튜브 다이렉트 업로드")
+        st.info("보안을 위해 깃허브에 인증 파일을 올리지 마세요! 1단계에서 만든 인증 파일을 아래에 직접 업로드해주세요.")
         
-        upload_options = {}
-        if st.session_state.main_video_path and os.path.exists(st.session_state.main_video_path):
-            upload_options["메인 영상"] = st.session_state.main_video_path
-        for i, p in enumerate(st.session_state.shorts_paths):
-            if os.path.exists(p):
-                upload_options[f"쇼츠 영상 {i+1}"] = p
-            
-        if upload_options:
-            selected_vid_key = st.selectbox("업로드할 영상 선택", list(upload_options.keys()))
-            selected_vid_path = upload_options[selected_vid_key]
-            
-            yt_title = st.text_input("📌 영상 제목", value=f"{st.session_state.base_name}")
-            yt_desc = st.text_area("📝 영상 설명", value="오늘의 추천곡입니다. 감상해보세요!\n\n#음악추천 #플레이리스트", height=100)
-            yt_tags = st.text_input("🏷️ 태그 (쉼표로 구분)", value="음악추천, 플레이리스트")
-            yt_privacy = st.selectbox("🔒 공개 상태", ["private", "unlisted", "public"], index=0)
-            
-            if st.button("🔥 유튜브로 즉시 업로드", type="primary"):
-                with st.spinner("유튜브에 업로드 중입니다... (인증 창이 뜨면 로그인해주세요)"):
-                    success, msg = upload_to_youtube(selected_vid_path, yt_title, yt_desc, yt_tags, yt_privacy)
-                    if success:
-                        st.success(msg)
-                    else:
-                        st.error(msg)
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            client_file = st.file_uploader("🔑 client_secrets.json 업로드", type=['json'])
+        with col_f2:
+            token_file = st.file_uploader("🎫 token.json 업로드 (PC에서 생성한 파일)", type=['json'])
+
+        if client_file and token_file:
+            with open("client_secrets.json", "wb") as f:
+                f.write(client_file.getbuffer())
+            with open("token.json", "wb") as f:
+                f.write(token_file.getbuffer())
+                
+            upload_options = {}
+            if st.session_state.main_video_path and os.path.exists(st.session_state.main_video_path):
+                upload_options["메인 영상"] = st.session_state.main_video_path
+            for i, p in enumerate(st.session_state.shorts_paths):
+                if os.path.exists(p):
+                    upload_options[f"쇼츠 영상 {i+1}"] = p
+                
+            if upload_options:
+                selected_vid_key = st.selectbox("업로드할 영상 선택", list(upload_options.keys()))
+                selected_vid_path = upload_options[selected_vid_key]
+                
+                yt_title = st.text_input("📌 영상 제목", value=f"{st.session_state.base_name}")
+                yt_desc = st.text_area("📝 영상 설명", value="오늘의 추천곡입니다. 감상해보세요!\n\n#음악추천 #플레이리스트", height=100)
+                yt_tags = st.text_input("🏷️ 태그 (쉼표로 구분)", value="음악추천, 플레이리스트")
+                yt_privacy = st.selectbox("🔒 공개 상태", ["private", "unlisted", "public"], index=0)
+                
+                if st.button("🔥 유튜브로 즉시 업로드", type="primary"):
+                    with st.spinner("유튜브에 업로드 중입니다..."):
+                        success, msg = upload_to_youtube(selected_vid_path, yt_title, yt_desc, yt_tags, yt_privacy)
+                        if success:
+                            st.success(msg)
+                            st.balloons()
+                        else:
+                            st.error(msg)
+        else:
+            st.warning("위 2개의 인증 파일(client_secrets.json, token.json)을 모두 업로드해야 업로드 버튼이 나타납니다.")
