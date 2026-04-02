@@ -6,7 +6,7 @@ import re
 import random
 import gc
 import numpy as np
-from moviepy.editor import AudioFileClip, ImageClip
+from moviepy.editor import AudioFileClip, ImageClip, VideoClip # VideoClip 추가됨
 import moviepy.audio.fx.all as afx
 from PIL import Image, ImageDraw, ImageFont
 from proglog import ProgressBarLogger
@@ -29,8 +29,8 @@ font_path = "NanumGothicBold.ttf"
 if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
-st.title("🎵 AI 뮤직비디오 팩토리 (메모리 최적화 버전)")
-st.write("무료 서버 환경에 맞춰 RAM 사용량을 최소화한 버전입니다.")
+st.title("🎵 AI 뮤직비디오 팩토리 (가사 스크롤 탑재)")
+st.write("제목 정렬 및 가사 스크롤 애니메이션이 완벽히 적용된 버전입니다.")
 
 # ==========================================
 # 🌟 스트림릿 전용 실시간 진행률 로거 클래스
@@ -66,23 +66,16 @@ eras = {"선택안함": "", "현대 / 도심": "modern day", "근미래 / 사이
 effects = {"선택안함": "", "필름 노이즈": "heavy film grain", "빛 번짐": "lens flare", "아웃포커싱": "shallow depth of field", "세피아 필터": "sepia filter", "빛바랜 폴라로이드": "polaroid effect"}
 
 # ==========================================
-# ⚙️ 핵심 알고리즘 (🔥 메모리 최적화 및 ZeroDivision 예외처리)
+# ⚙️ 핵심 알고리즘 (🔥 타이틀 정렬 및 영상 생성 함수 최적화)
 # ==========================================
 def find_highlights_lite(duration_sec, num_highlights=0): 
-    if num_highlights <= 0:
-        return []
-        
+    if num_highlights <= 0: return []
     highlights = []
-    if duration_sec < 60:
-        return [random.randint(5, max(5, int(duration_sec) - 30)) for _ in range(num_highlights)]
-    
+    if duration_sec < 60: return [random.randint(5, max(5, int(duration_sec) - 30)) for _ in range(num_highlights)]
     section_length = (duration_sec - 30) / num_highlights
     for i in range(num_highlights):
-        start_search = i * section_length
-        end_search = (i + 1) * section_length
-        hit_time = start_search + (section_length * random.uniform(0.5, 0.8))
+        hit_time = (i * section_length) + (section_length * random.uniform(0.5, 0.8))
         highlights.append(int(hit_time))
-        
     return highlights
 
 def create_cover_image(prompt, width, height, title_text, output_path, seed):
@@ -93,17 +86,68 @@ def create_cover_image(prompt, width, height, title_text, output_path, seed):
     
     img = Image.open(output_path).convert("RGBA")
     draw = ImageDraw.Draw(img)
-    title_font = ImageFont.truetype(font_path, 65 if width == 1280 else 55)
-    try:
-        bbox = draw.textbbox((0, 0), title_text, font=title_font, align="center")
-        text_w = bbox[2] - bbox[0]
-    except: text_w = 400
     
-    x = (width - text_w) / 2
-    y = height * 0.1 
-    draw.multiline_text((x, y), title_text, font=title_font, fill="white", stroke_width=4, stroke_fill="black", align="center")
+    # 🔥 제목 크기 축소 (1280일 땐 45, 720일 땐 35)
+    title_font = ImageFont.truetype(font_path, 45 if width == 1280 else 35)
+    
+    # 🔥 x, y 좌표를 화면 정중앙 및 적절한 높이로 설정 (anchor="ma"를 사용하여 완벽한 중앙 정렬)
+    x = width / 2
+    y = height * 0.12 # 위에서 12% 위치
+    
+    draw.multiline_text((x, y), title_text, font=title_font, fill="white", stroke_width=4, stroke_fill="black", align="center", anchor="ma")
     img.convert("RGB").save(output_path)
-    img.close() # 🔥 메모리 확보
+    img.close()
+
+# 🎬 🌟 새로운 함수: 가사 스크롤 애니메이션 비디오 생성기
+def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
+    base_img = Image.open(image_path).convert("RGBA")
+    duration = audio_clip.duration
+    lines = [line.strip() for line in lyrics_text.split('\n') if line.strip()]
+    
+    # 가사가 없으면 기존처럼 가볍게 1fps 이미지 렌더링
+    if not lines:
+        clip = ImageClip(np.array(base_img.convert("RGB"))).set_duration(duration).set_audio(audio_clip)
+        clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1, logger=logger)
+        clip.close()
+        base_img.close()
+        return
+
+    # 가사가 있을 경우 스크롤 애니메이션 렌더링
+    lyric_font_size = 35 if width == 1280 else 30
+    lyric_font = ImageFont.truetype(font_path, lyric_font_size)
+    line_spacing = 1.8
+    
+    try:
+        dummy_bbox = ImageDraw.Draw(base_img).textbbox((0,0), "A", font=lyric_font)
+        line_height = dummy_bbox[3] - dummy_bbox[1]
+    except:
+        line_height = lyric_font_size
+        
+    step_y = line_height * line_spacing
+    total_text_height = len(lines) * step_y
+    
+    def make_frame(t):
+        frame_img = base_img.copy()
+        draw = ImageDraw.Draw(frame_img)
+        
+        # t에 따라 가사가 아래에서 위로 올라가는 y좌표 계산
+        progress = t / duration
+        current_y = height - (progress * (height + total_text_height))
+        
+        for i, line in enumerate(lines):
+            lyric_y = current_y + (i * step_y)
+            # 화면 영역 안(-100 ~ height+100)에 들어온 글씨만 그려서 메모리 최적화
+            if -100 < lyric_y < height + 100:
+                draw.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=3, stroke_fill="black", align="center", anchor="ma")
+        
+        return np.array(frame_img.convert("RGB"))
+
+    # 자연스러운 스크롤을 위해 fps를 12로 상향 (가사가 있을 때만 적용됨)
+    video_clip = VideoClip(make_frame, duration=duration).set_audio(audio_clip)
+    video_clip.write_videofile(output_path, fps=12, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1, logger=logger)
+    
+    video_clip.close()
+    base_img.close()
 
 # ==========================================
 # 🖥️ 사이드바 & 메인 UI 구성
@@ -111,16 +155,14 @@ def create_cover_image(prompt, width, height, title_text, output_path, seed):
 st.sidebar.header("1. 기본 설정")
 uploaded_audio = st.sidebar.file_uploader("🎧 음원 파일 (WAV, MP3)", type=['wav', 'mp3'])
 num_shorts = st.sidebar.slider("📱 생성할 쇼츠 개수", min_value=0, max_value=4, value=0)
-lyrics = st.sidebar.text_area("📝 가사 입력 (대괄호 자동 삭제)", height=150)
+lyrics = st.sidebar.text_area("📝 가사 입력 (비워두면 스크롤 없음)", height=200, placeholder="가사를 입력하면 영상에 크레딧처럼 올라가는 스크롤 효과가 적용됩니다.")
 
 st.header("🎨 2. 앨범 커버 초정밀 연출")
 subject = st.text_input("🎯 메인 주제/사물 (선택)", placeholder="예: 창밖을 바라보는 고양이 (영어로 쓰면 더 정확합니다)")
 
 col_g1, col_g2 = st.columns(2)
-with col_g1:
-    pop_choice = st.selectbox("🎧 대중음악 장르 (CCM 선택 시 무시됨)", list(pop_genres.keys()))
-with col_g2:
-    ccm_choice = st.selectbox("⛪ CCM 장르", list(ccm_genres.keys()))
+with col_g1: pop_choice = st.selectbox("🎧 대중음악 장르 (CCM 선택 시 무시됨)", list(pop_genres.keys()))
+with col_g2: ccm_choice = st.selectbox("⛪ CCM 장르", list(ccm_genres.keys()))
 
 col1, col2 = st.columns(2)
 with col1:
@@ -153,7 +195,6 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             progress_text = st.empty()
 
         try:
-            # 상태 초기화
             st.session_state.shorts_paths = []
             st.session_state.is_completed = False
             
@@ -180,36 +221,28 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             ]
             final_prompt = ", ".join([p for p in prompt_parts if p])
 
-            # [작업 1] 메인 영상 생성
+            # [작업 1] 메인 영상 커버 생성
             step_title.markdown("#### 🖼️ [1단계] 메인 앨범 커버(16:9) 생성 중...")
             main_img_path = "temp_main_img.jpg"
             create_cover_image(final_prompt, 1280, 720, display_title, main_img_path, seed=123)
             
-            step_title.markdown("#### 🎬 [2단계] 메인 영상(16:9) 렌더링 중...")
+            # [작업 2] 메인 영상 렌더링 (가사 스크롤 포함)
+            step_title.markdown("#### 🎬 [2단계] 메인 영상(16:9) 렌더링 중... (가사 애니메이션 적용)")
             main_video_path = "output_main_video.mp4"
             main_logger = StreamlitProgressLogger(progress_bar, progress_text, "메인 영상")
             
-            main_img_clip = ImageClip(main_img_path).set_duration(audio_duration)
-            main_video_clip = main_img_clip.set_audio(full_audio)
+            generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720)
             
-            main_video_clip.write_videofile(
-                main_video_path, fps=1, codec="libx264", audio_codec="aac", 
-                preset="ultrafast", threads=1, logger=main_logger
-            )
-            
-            main_video_clip.close()
-            main_img_clip.close()
             st.session_state.main_video_path = main_video_path 
             gc.collect()
 
-            # [작업 2] 오디오 하이라이트 (쇼츠를 1개 이상 만들 때만 실행)
+            # [작업 3] 쇼츠 추출 및 렌더링
             if num_shorts > 0:
                 progress_bar.progress(0)
                 progress_text.empty()
                 step_title.markdown("#### 🔍 [3단계] 쇼츠 추출 구간 계산 중...")
                 highlight_times = find_highlights_lite(audio_duration, num_shorts)
                 
-                # [작업 3] 쇼츠 생성
                 for i, start_time in enumerate(highlight_times):
                     progress_bar.progress(0)
                     step_title.markdown(f"#### 📱 [4단계] 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
@@ -224,18 +257,9 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
                     
-                    shorts_img_clip = ImageClip(shorts_img_path).set_duration(shorts_audio.duration)
-                    shorts_video_clip = shorts_img_clip.set_audio(shorts_audio)
+                    generate_video_with_lyrics(shorts_img_path, shorts_audio, final_clean_lyrics, shorts_video_path, shorts_logger, 720, 1280)
                     
-                    shorts_video_clip.write_videofile(
-                        shorts_video_path, fps=1, codec="libx264", audio_codec="aac", 
-                        preset="ultrafast", threads=1, logger=shorts_logger
-                    )
-                    
-                    shorts_video_clip.close()
-                    shorts_img_clip.close()
                     shorts_audio.close()
-                    
                     st.session_state.shorts_paths.append(shorts_video_path)
                     gc.collect()
 
@@ -247,7 +271,6 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             st.session_state.yt_tags = f"{base_name.replace('_', ', ')}, 음악추천, 플레이리스트, {mood_choice.split(' ')[0]}음악, 힐링"
             if is_ccm_selected: st.session_state.yt_tags += ", CCM, 찬양, 은혜, 예배"
 
-            # 원본 오디오 파일 닫기
             full_audio.close()
             st.session_state.is_completed = True
             st.session_state.base_name = base_name
