@@ -5,12 +5,13 @@ import re
 import random
 import gc
 import numpy as np
+from datetime import datetime, timedelta, timezone
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip
 import moviepy.audio.fx.all as afx
 from PIL import Image, ImageDraw, ImageFont
 from proglog import ProgressBarLogger
 
-st.set_page_config(page_title="AI 뮤직비디오 팩토리", page_icon="🎵", layout="wide")
+st.set_page_config(page_title="은혜로운 찬양 팩토리", page_icon="🕊️", layout="wide")
 
 # --- 💾 메모리 유지 ---
 if 'is_completed' not in st.session_state: st.session_state.is_completed = False
@@ -25,8 +26,8 @@ font_path = "NanumGothicBold.ttf"
 if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
-st.title("🎵 뮤직비디오 팩토리 (클라우드 완벽 지원)")
-st.write("메인 영상(가사O)과 쇼츠(가사X)를 분리하고, 클라우드 환경에서도 안전하게 유튜브로 업로드할 수 있습니다.")
+st.title("🕊️ 은혜로운 찬양 영상 팩토리")
+st.write("이미지를 업로드하고 영상을 제작한 뒤, 내 채널에 다이렉트(예약/공개)로 업로드하세요.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -135,18 +136,17 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     long_lyrics_img.close()
 
 # ==========================================
-# 🚀 클라우드 전용 유튜브 다이렉트 업로드 함수
+# 🚀 예약 기능을 포함한 유튜브 다이렉트 업로드 함수
 # ==========================================
-def upload_to_youtube(video_path, title, description, tags, privacy_status):
+def upload_to_youtube(video_path, title, description, tags, privacy_status, publish_at=None):
     try:
         from googleapiclient.discovery import build
         from googleapiclient.http import MediaFileUpload
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
     except ImportError:
-        return False, "구글 API 라이브러리가 없습니다. requirements.txt에 google-api-python-client, google-auth-oauthlib 를 추가하세요."
+        return False, "구글 API 라이브러리가 없습니다."
 
-    # 클라우드 환경에서는 무조건 업로드된 token.json을 사용합니다.
     if not os.path.exists("token.json"):
         return False, "token.json 파일이 업로드되지 않았습니다."
 
@@ -155,11 +155,10 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status):
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-            # 갱신된 토큰 덮어쓰기 (클라우드 임시 메모리)
             with open("token.json", "w") as token:
                 token.write(creds.to_json())
         else:
-            return False, "토큰이 만료되었거나 유효하지 않습니다. PC에서 token.json을 새로 만들어서 업로드해주세요."
+            return False, "토큰이 만료되었거나 유효하지 않습니다."
 
     try:
         youtube = build("youtube", "v3", credentials=creds)
@@ -170,8 +169,15 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status):
                 "tags": [t.strip() for t in tags.split(",") if t.strip()],
                 "categoryId": "10" # Music
             },
-            "status": {"privacyStatus": privacy_status}
+            "status": {
+                "privacyStatus": privacy_status # 예약 업로드 시엔 무조건 'private'로 들어옴
+            }
         }
+        
+        # 예약 업로드 날짜/시간이 전달되었다면 추가
+        if publish_at:
+            body["status"]["publishAt"] = publish_at
+
         media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
         response = request.execute()
@@ -280,8 +286,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
-                    
-                    # 🌟 쇼츠는 가사를 비워서 전송 (스크롤 차단)
                     generate_video_with_lyrics(shorts_img_path, shorts_audio, "", shorts_video_path, shorts_logger, 720, 1280)
                     
                     shorts_audio.close()
@@ -297,7 +301,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             st.error(f"오류가 발생했습니다: {e}")
 
 # ==========================================
-# 🎉 완료 화면 및 클라우드 안전 유튜브 업로드
+# 🎉 완료 화면 및 유튜브 다이렉트 업로드 (CCM 전용 템플릿 & 예약업로드)
 # ==========================================
 if st.session_state.is_completed:
     st.divider()
@@ -316,10 +320,8 @@ if st.session_state.is_completed:
         st.success("🎉 요청하신 영상 렌더링이 성공적으로 완료되었습니다!")
         
         tab_names = []
-        if st.session_state.main_video_path:
-            tab_names.append("📺 메인 영상")
-        for i in range(len(st.session_state.shorts_paths)):
-            tab_names.append(f"📱 쇼츠 {i+1}")
+        if st.session_state.main_video_path: tab_names.append("📺 메인 영상")
+        for i in range(len(st.session_state.shorts_paths)): tab_names.append(f"📱 쇼츠 {i+1}")
             
         tabs = st.tabs(tab_names)
         
@@ -341,8 +343,7 @@ if st.session_state.is_completed:
         st.divider()
         
         # 🔥 클라우드용 안전한 유튜브 다이렉트 업로드 섹션
-        st.header("🚀 안전한 유튜브 다이렉트 업로드")
-        st.info("보안을 위해 깃허브에 인증 파일을 올리지 마세요! 1단계에서 만든 인증 파일을 아래에 직접 업로드해주세요.")
+        st.header("🚀 유튜브 다이렉트 업로드")
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -364,17 +365,68 @@ if st.session_state.is_completed:
                     upload_options[f"쇼츠 영상 {i+1}"] = p
                 
             if upload_options:
-                selected_vid_key = st.selectbox("업로드할 영상 선택", list(upload_options.keys()))
+                selected_vid_key = st.selectbox("📌 업로드할 영상 선택", list(upload_options.keys()))
                 selected_vid_path = upload_options[selected_vid_key]
                 
-                yt_title = st.text_input("📌 영상 제목", value=f"{st.session_state.base_name}")
-                yt_desc = st.text_area("📝 영상 설명", value="오늘의 추천곡입니다. 감상해보세요!\n\n#음악추천 #플레이리스트", height=100)
-                yt_tags = st.text_input("🏷️ 태그 (쉼표로 구분)", value="음악추천, 플레이리스트")
-                yt_privacy = st.selectbox("🔒 공개 상태", ["private", "unlisted", "public"], index=0)
+                # 🌟 CCM 맞춤형 유튜브 내용 템플릿
+                yt_title = st.text_input("📝 영상 제목", value=f"[{st.session_state.base_name}] 은혜로운 찬양 플레이리스트")
                 
-                if st.button("🔥 유튜브로 즉시 업로드", type="primary"):
-                    with st.spinner("유튜브에 업로드 중입니다..."):
-                        success, msg = upload_to_youtube(selected_vid_path, yt_title, yt_desc, yt_tags, yt_privacy)
+                ccm_desc_template = f"""할렐루야! 오늘 함께 나눌 찬양은 '{st.session_state.base_name}' 입니다. 🌿
+
+지치고 상한 마음, 예배의 자리를 사모하는 모든 분들께 이 찬양이 작은 위로와 평안이 되기를 소망합니다.
+가사를 묵상하며 주님의 크신 사랑과 은혜를 깊이 경험하는 귀한 시간 되시길 기도합니다. 
+
+항상 주님 안에서 승리하시고, 오늘 하루도 말씀과 기도로 나아가는 복된 하루 되세요! 🙏
+
+🔔 구독과 좋아요는 은혜로운 찬양을 나누는 데 큰 힘이 됩니다. 💖
+
+#CCM #찬양 #예배 #은혜 #위로 #기도 #기독교 #교회 #찬양추천 #플레이리스트"""
+                
+                yt_desc = st.text_area("📜 영상 설명 (자연스러운 CCM 소개글로 세팅됨)", value=ccm_desc_template, height=300)
+                
+                # 🌟 CCM 맞춤형 태그 폭탄
+                ccm_tags = "CCM, 찬양, 예배, 은혜, 기독교, 교회, 찬송가, 워십, 복음성가, 기도, 묵상, 힐링찬양, 위로, 평안, 찬양추천, 플레이리스트, worship, praise, 주일예배, 특송, 은혜로운찬양, 아침찬양, 수면찬양"
+                yt_tags = st.text_input("🏷️ 검색 태그 (쉼표로 구분)", value=ccm_tags)
+                
+                # 🌟 예약 업로드 기능 추가
+                privacy_ui = st.selectbox("🔒 공개 상태", ["비공개 (Private)", "일부 공개 (Unlisted)", "공개 (Public)", "예약 업로드 (Scheduled)"])
+                
+                upload_date = None
+                upload_time = None
+                if privacy_ui == "예약 업로드 (Scheduled)":
+                    st.info("💡 예약 업로드 시각은 반드시 '현재 시각보다 미래'여야 합니다.")
+                    col_d, col_t = st.columns(2)
+                    with col_d: upload_date = st.date_input("🗓️ 날짜 선택")
+                    with col_t: upload_time = st.time_input("⏰ 한국 시간(KST) 기준 시간 선택")
+                
+                if st.button("🔥 유튜브 채널로 전송", type="primary"):
+                    with st.spinner("유튜브 서버로 안전하게 업로드 중입니다..."):
+                        # 변수 맵핑
+                        privacy_map = {
+                            "비공개 (Private)": "private",
+                            "일부 공개 (Unlisted)": "unlisted",
+                            "공개 (Public)": "public",
+                            "예약 업로드 (Scheduled)": "private" # 예약은 무조건 private로 올라가고 publishAt이 설정됨
+                        }
+                        final_privacy = privacy_map[privacy_ui]
+                        final_publish_at = None
+                        
+                        # 예약 업로드 시 KST -> UTC(ISO 8601) 변환
+                        if privacy_ui == "예약 업로드 (Scheduled)":
+                            kst_tz = timezone(timedelta(hours=9)) # 한국 시간 (UTC+9)
+                            dt_kst = datetime.combine(upload_date, upload_time, tzinfo=kst_tz)
+                            dt_utc = dt_kst.astimezone(timezone.utc)
+                            final_publish_at = dt_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
+                            
+                        success, msg = upload_to_youtube(
+                            selected_vid_path, 
+                            yt_title, 
+                            yt_desc, 
+                            yt_tags, 
+                            final_privacy, 
+                            publish_at=final_publish_at
+                        )
+                        
                         if success:
                             st.success(msg)
                             st.balloons()
