@@ -56,7 +56,8 @@ class StreamlitProgressLogger(ProgressBarLogger):
 pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz", "보사노바": "bossa nova", "로파이": "lofi hip hop", "시네마틱 / OST": "cinematic soundtrack"}
 ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship"}
 moods = {"선택안함": "", "경건하고 홀리한": "holy, reverent", "은혜롭고 따뜻한": "graceful, warm", "몽환적이고 신비로운": "ethereal, dreamy", "차분하고 서정적인": "lyrical, calm", "우울하고 쓸쓸한": "melancholic", "밝고 희망찬": "joyful, uplifting", "에너지 넘치는": "energetic"}
-styles = {"선택안함": "", "실사 사진 (초고화질)": "photorealistic, 8k resolution", "수채화": "soft watercolor", "유화": "classic oil painting", "지브리 애니메이션 풍": "studio ghibli style", "신카이 마코토 풍": "makoto shinkai style", "픽사/디즈니 3D 풍": "3D render, pixar style", "빈티지 일러스트": "vintage illustration"}
+styles =
+ {"선택안함": "", "실사 사진 (초고화질)": "photorealistic, 8k resolution", "수채화": "soft watercolor", "유화": "classic oil painting", "지브리 애니메이션 풍": "studio ghibli style", "신카이 마코토 풍": "makoto shinkai style", "픽사/디즈니 3D 풍": "3D render, pixar style", "빈티지 일러스트": "vintage illustration"}
 lightings = {"선택안함": "", "성스러운 빛": "god rays, volumetric lighting", "따스한 자연광": "natural sunlight", "눈부신 역광": "backlit, lens flare", "부드러운 스튜디오 조명": "soft studio lighting", "어두운 밤": "nighttime, soft moonlight", "화려한 네온사인": "vibrant neon lighting", "골든 아워 (노을빛)": "golden hour lighting"}
 colors = {"선택안함": "", "황금빛 톤": "golden color palette", "따뜻한 웜톤": "warm color palette", "차가운 쿨톤": "cool color palette", "흑백 / 모노톤": "black and white", "부드러운 파스텔": "soft pastel colors", "빈티지": "vintage colors"}
 cameras = {"선택안함": "", "클로즈업": "extreme close-up shot", "바스트 샷": "medium shot", "전신 샷": "full body shot", "풍경 위주": "wide landscape shot", "로우 앵글": "low angle shot", "하이 앵글": "high angle shot", "드론 뷰": "bird's eye view"}
@@ -66,24 +67,21 @@ eras = {"선택안함": "", "현대 / 도심": "modern day", "근미래 / 사이
 effects = {"선택안함": "", "필름 노이즈": "heavy film grain", "빛 번짐": "lens flare", "아웃포커싱": "shallow depth of field", "세피아 필터": "sepia filter", "빛바랜 폴라로이드": "polaroid effect"}
 
 # ==========================================
-# ⚙️ 핵심 알고리즘 (🔥 메모리 초적화 적용)
+# ⚙️ 핵심 알고리즘 (🔥 메모리 초적화 및 ZeroDivision 예외처리 적용)
 # ==========================================
-def find_highlights_lite(duration_sec, num_highlights=1):
-    """
-    무료 서버의 RAM 폭파(OOM)를 막기 위해
-    무거운 numpy 배열 변환 대신, 곡의 구조를 수학적으로 분할하여 하이라이트를 추출합니다.
-    """
+def find_highlights_lite(duration_sec, num_highlights=0): # 기본값 0으로 변경
+    # 🔥 에러 해결: 쇼츠를 0개 만들기로 했을 때 0으로 나누는 에러 방지
+    if num_highlights <= 0:
+        return []
+        
     highlights = []
-    # 짧은 곡인 경우 안전장치
     if duration_sec < 60:
         return [random.randint(5, max(5, int(duration_sec) - 30)) for _ in range(num_highlights)]
     
-    # 곡을 num_highlights 만큼 균등 분할하고, 각 구간의 60~80% 지점(보통 하이라이트)을 잡음
     section_length = (duration_sec - 30) / num_highlights
     for i in range(num_highlights):
         start_search = i * section_length
         end_search = (i + 1) * section_length
-        # 보통 각 구간의 후반부에 하이라이트가 터짐
         hit_time = start_search + (section_length * random.uniform(0.5, 0.8))
         highlights.append(int(hit_time))
         
@@ -166,7 +164,7 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             
             clean_lyrics_list = [line.strip() for line in re.sub(r'\[.*?\]', '', lyrics).split('\n') if line.strip()]
             final_clean_lyrics = '\n'.join(clean_lyrics_list)
-            st.session_state.clean_lyrics = final_clean_lyrics  # 🔥 누락되었던 세션 저장
+            st.session_state.clean_lyrics = final_clean_lyrics 
 
             step_title.markdown("#### 🎵 음원 파일 로딩 중...")
             audio_path = "temp_audio.wav"
@@ -193,7 +191,6 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             main_video_path = "output_main_video.mp4"
             main_logger = StreamlitProgressLogger(progress_bar, progress_text, "메인 영상")
             
-            # 🔥 메모리 최적화를 위해 객체를 변수에 담아 명시적으로 닫아줍니다.
             main_img_clip = ImageClip(main_img_path).set_duration(audio_duration)
             main_video_clip = main_img_clip.set_audio(full_audio)
             
@@ -202,48 +199,47 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
                 preset="ultrafast", threads=1, logger=main_logger
             )
             
-            # 🔥 사용 끝난 메인 객체 닫기 및 삭제
             main_video_clip.close()
             main_img_clip.close()
-            st.session_state.main_video_path = main_video_path # 🔥 누락되었던 메인 비디오 경로 저장
+            st.session_state.main_video_path = main_video_path 
             gc.collect()
 
-            # [작업 2] 오디오 하이라이트 (메모리 안전 버전)
-            progress_bar.progress(0)
-            progress_text.empty()
-            step_title.markdown("#### 🔍 [3단계] 쇼츠 추출 구간 계산 중...")
-            highlight_times = find_highlights_lite(audio_duration, num_shorts) # 🔥 메모리 초과 방지 함수 사용
-            
-            # [작업 3] 쇼츠 생성
-            for i, start_time in enumerate(highlight_times):
+            # [작업 2] 오디오 하이라이트 계산 (0으로 나누기 에러 방지 처리됨!)
+            if num_shorts > 0:
                 progress_bar.progress(0)
-                step_title.markdown(f"#### 📱 [4단계] 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
+                progress_text.empty()
+                step_title.markdown("#### 🔍 [3단계] 쇼츠 추출 구간 계산 중...")
+                highlight_times = find_highlights_lite(audio_duration, num_shorts)
                 
-                shorts_img_path = f"temp_shorts_img_{i}.jpg"
-                create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999))
-                
-                short_dur = min(random.randint(35, 55), audio_duration - start_time)
-                shorts_audio = full_audio.subclip(start_time, start_time + short_dur)
-                shorts_audio = shorts_audio.fx(afx.audio_fadein, 1.5).fx(afx.audio_fadeout, 3.0)
-                
-                shorts_video_path = f"output_shorts_{i+1}.mp4"
-                shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
-                
-                shorts_img_clip = ImageClip(shorts_img_path).set_duration(shorts_audio.duration)
-                shorts_video_clip = shorts_img_clip.set_audio(shorts_audio)
-                
-                shorts_video_clip.write_videofile(
-                    shorts_video_path, fps=1, codec="libx264", audio_codec="aac", 
-                    preset="ultrafast", threads=1, logger=shorts_logger
-                )
-                
-                # 🔥 쇼츠 객체 명시적 닫기 (메모리 누수 완전 차단)
-                shorts_video_clip.close()
-                shorts_img_clip.close()
-                shorts_audio.close()
-                
-                st.session_state.shorts_paths.append(shorts_video_path)
-                gc.collect()
+                # [작업 3] 쇼츠 생성
+                for i, start_time in enumerate(highlight_times):
+                    progress_bar.progress(0)
+                    step_title.markdown(f"#### 📱 [4단계] 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
+                    
+                    shorts_img_path = f"temp_shorts_img_{i}.jpg"
+                    create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999))
+                    
+                    short_dur = min(random.randint(35, 55), audio_duration - start_time)
+                    shorts_audio = full_audio.subclip(start_time, start_time + short_dur)
+                    shorts_audio = shorts_audio.fx(afx.audio_fadein, 1.5).fx(afx.audio_fadeout, 3.0)
+                    
+                    shorts_video_path = f"output_shorts_{i+1}.mp4"
+                    shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
+                    
+                    shorts_img_clip = ImageClip(shorts_img_path).set_duration(shorts_audio.duration)
+                    shorts_video_clip = shorts_img_clip.set_audio(shorts_audio)
+                    
+                    shorts_video_clip.write_videofile(
+                        shorts_video_path, fps=1, codec="libx264", audio_codec="aac", 
+                        preset="ultrafast", threads=1, logger=shorts_logger
+                    )
+                    
+                    shorts_video_clip.close()
+                    shorts_img_clip.close()
+                    shorts_audio.close()
+                    
+                    st.session_state.shorts_paths.append(shorts_video_path)
+                    gc.collect()
 
             # 메타데이터 생성
             is_ccm_selected = ccm_choice != "선택안함"
@@ -253,7 +249,7 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             st.session_state.yt_tags = f"{base_name.replace('_', ', ')}, 음악추천, 플레이리스트, {mood_choice.split(' ')[0]}음악, 힐링"
             if is_ccm_selected: st.session_state.yt_tags += ", CCM, 찬양, 은혜, 예배"
 
-            # 🔥 마지막으로 원본 오디오 파일 닫기
+            # 원본 오디오 파일 닫기
             full_audio.close()
             st.session_state.is_completed = True
             st.session_state.base_name = base_name
@@ -271,7 +267,6 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
 if st.session_state.is_completed:
     st.divider()
     
-    # 🌟 안전장치 (이제 정상 작동합니다!)
     if not os.path.exists(st.session_state.main_video_path):
         st.error("🚨 서버 메모리 부족으로 파일이 유실되었습니다. 새로고침(F5) 후 쇼츠 개수를 줄여서 다시 시도해주세요.")
         st.session_state.is_completed = False
