@@ -28,7 +28,7 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("유튜브(가로), 틱톡/릴스(세로 풀영상), 쇼츠(하이라이트)를 한 번에 제작하고 업로드하세요.")
+st.write("유튜브(가로), 틱톡/릴스(세로 풀영상), 쇼츠(하이라이트)를 각각 맞춤 이미지로 한 번에 제작하세요.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -82,7 +82,6 @@ def process_user_image(uploaded_file, width, height, output_path):
     target_ratio = width / height
     img_ratio = img.width / img.height
     
-    # 🌟 자동 크롭: 가로 이미지를 세로(틱톡) 렌더링에 넣어도 자동으로 예쁘게 중앙이 잘립니다.
     if img_ratio > target_ratio:
         new_w = int(img.height * target_ratio)
         left = (img.width - new_w) // 2
@@ -265,20 +264,19 @@ st.sidebar.header("1. 파일 업로드 (필수)")
 uploaded_audio = st.sidebar.file_uploader("🎧 음원 파일 (WAV, MP3)", type=['wav', 'mp3'])
 
 st.sidebar.divider()
-st.sidebar.header("2. 생성 항목 선택")
+st.sidebar.header("2. 영상 생성 항목 선택")
 
 # 📺 1. 메인 영상 (가로)
 generate_main = st.sidebar.checkbox("📺 유튜브 메인 (가로 16:9) 생성", value=True)
 uploaded_main_img = None
 if generate_main:
-    uploaded_main_img = st.sidebar.file_uploader("📺 가로 메인용 배경", type=['jpg', 'jpeg', 'png'])
+    uploaded_main_img = st.sidebar.file_uploader("📺 가로 메인용 배경 이미지", type=['jpg', 'jpeg', 'png'])
 
-# 📱 2. 메인 2 (틱톡/릴스용 세로)
+# 📱 2. 틱톡 풀영상 (세로)
 generate_tiktok = st.sidebar.checkbox("📱 틱톡 풀영상 (세로 9:16) 생성", value=False)
 uploaded_tiktok_img = None
 if generate_tiktok:
-    st.sidebar.info("💡 가로 이미지를 올려도 틱톡용(세로)으로 알아서 중앙이 잘립니다.")
-    uploaded_tiktok_img = st.sidebar.file_uploader("📱 틱톡 풀영상 배경", type=['jpg', 'jpeg', 'png'])
+    uploaded_tiktok_img = st.sidebar.file_uploader("📱 틱톡 풀영상 전용 배경 이미지 (세로)", type=['jpg', 'jpeg', 'png'])
 
 st.sidebar.divider()
 # ✂️ 3. 쇼츠 추출 (하이라이트)
@@ -286,12 +284,13 @@ num_shorts = st.sidebar.slider("✂️ 하이라이트 쇼츠 (가사X) 개수",
 
 uploaded_shorts_imgs = []
 if num_shorts > 0:
+    st.sidebar.write("✂️ 쇼츠 전용 배경 업로드 (세로)")
     for i in range(num_shorts):
-        upl = st.sidebar.file_uploader(f"✂️ 쇼츠 {i+1} 배경", type=['jpg', 'jpeg', 'png'], key=f"short_upload_{i}")
+        upl = st.sidebar.file_uploader(f"쇼츠 {i+1} 전용 배경 이미지", type=['jpg', 'jpeg', 'png'], key=f"short_upload_{i}")
         uploaded_shorts_imgs.append(upl)
 
 st.sidebar.divider()
-lyrics = st.sidebar.text_area("📝 가사 입력 (메인 및 틱톡 풀영상에 스크롤됨)", height=150)
+lyrics = st.sidebar.text_area("📝 가사 입력 (메인 가로영상 및 틱톡 풀영상에 동시 스크롤됨)", height=150)
 
 st.sidebar.write("⏱️ 가사 스크롤 시작 시간")
 sync_start = st.sidebar.text_input("시작 (예: 00:15)", placeholder="비워두면 AI가 자동으로 맞춥니다.")
@@ -307,9 +306,9 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
     elif generate_main and uploaded_main_img is None:
         st.error("⚠️ 가로 메인 영상을 생성하려면 배경 이미지를 업로드해야 합니다.")
     elif generate_tiktok and uploaded_tiktok_img is None:
-        st.error("⚠️ 틱톡 풀영상을 생성하려면 배경 이미지를 업로드해야 합니다.")
+        st.error("⚠️ 틱톡 풀영상을 생성하려면 세로 배경 이미지를 업로드해야 합니다.")
     elif num_shorts > 0 and None in uploaded_shorts_imgs:
-        st.error("⚠️ 설정한 쇼츠 개수만큼 쇼츠 배경 이미지를 모두 업로드해주세요.")
+        st.error("⚠️ 설정한 쇼츠 개수만큼 쇼츠 전용 배경 이미지를 모두 업로드해주세요.")
     else:
         status_box = st.container()
         with status_box:
@@ -346,7 +345,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
 
             # [작업 1] 메인 영상 렌더링 (가로)
             if generate_main:
-                step_title.markdown(f"#### 🎬 [1단계] 메인 가로 영상(16:9) 렌더링 중... (가사 시작: {int(final_start_sec)}초)")
+                step_title.markdown(f"#### 🎬 [1단계] 유튜브 메인 영상(16:9) 렌더링 중... (가사 시작: {int(final_start_sec)}초)")
                 main_img_path = "temp_main_img.png"
                 process_user_image(uploaded_main_img, 1280, 720, main_img_path)
                 
@@ -363,13 +362,13 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             if generate_tiktok:
                 step_title.markdown(f"#### 📱 [2단계] 틱톡 풀영상(9:16) 렌더링 중... (가사 시작: {int(final_start_sec)}초)")
                 tiktok_img_path = "temp_tiktok_img.png"
-                # 가로 이미지가 들어와도 720x1280에 맞춰 예쁘게 크롭됩니다.
+                # 🌟 전용 세로 이미지로 처리
                 process_user_image(uploaded_tiktok_img, 720, 1280, tiktok_img_path)
                 
                 tiktok_video_path = "output_tiktok_video.mp4"
                 tiktok_logger = StreamlitProgressLogger(progress_bar, progress_text, "틱톡 영상")
                 
-                # 메인 영상과 완벽히 동일한 가사와 스크롤 효과 적용
+                # 메인 영상과 완벽히 동일한 스크롤 효과
                 generate_video_with_lyrics(tiktok_img_path, full_audio, final_clean_lyrics, tiktok_video_path, tiktok_logger, 720, 1280, start_sec=final_start_sec)
                 
                 st.session_state.tiktok_video_path = tiktok_video_path 
@@ -388,6 +387,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     step_title.markdown(f"#### ✂️ [4단계] 하이라이트 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
                     
                     shorts_img_path = f"temp_shorts_img_{i}.png"
+                    # 개별 쇼츠 이미지 적용
                     process_user_image(uploaded_shorts_imgs[i], 720, 1280, shorts_img_path)
                     
                     short_dur = min(random.randint(35, 55), audio_duration - start_time)
@@ -400,7 +400,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
                     
-                    # 쇼츠에는 가사 빈 문자열("") 전송 -> 스크롤 없이 초고속 렌더링
+                    # 가사 빈칸("")으로 전송 -> 가사 스크롤 아예 차단
                     generate_video_with_lyrics(shorts_img_path, shorts_audio, "", shorts_video_path, shorts_logger, 720, 1280)
                     
                     shorts_audio.close()
