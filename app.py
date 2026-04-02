@@ -23,14 +23,18 @@ if 'yt_title' not in st.session_state: st.session_state.yt_title = ""
 if 'yt_desc' not in st.session_state: st.session_state.yt_desc = ""
 if 'yt_tags' not in st.session_state: st.session_state.yt_tags = ""
 
+# 사용자 정의 에러 클래스
+class ImageGenerationError(Exception):
+    pass
+
 # --- 🔠 폰트 다운로드 ---
 font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
 font_path = "NanumGothicBold.ttf"
 if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
-st.title("🎵 AI 뮤직비디오 팩토리 (이미지 오류 무적 패치)")
-st.write("이미지 서버가 불안정해도 영상 제작이 중단되지 않는 버전입니다.")
+st.title("🎵 AI 뮤직비디오 팩토리 (이미지 수동 업로드 지원)")
+st.write("AI 서버 에러 대비 배경 이미지 업로드 기능과 가사 줄바꿈 유지 기능이 추가되었습니다.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -78,32 +82,49 @@ def find_highlights_lite(duration_sec, num_highlights=0):
         highlights.append(int(hit_time))
     return highlights
 
-def create_cover_image(prompt, width, height, title_text, output_path, seed):
-    # 프롬프트 정리 (줄바꿈 등으로 URL이 깨지는 것 방지)
-    safe_prompt = re.sub(r'\s+', ' ', prompt).strip()
-    encoded_prompt = urllib.parse.quote(safe_prompt)
-    url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
-    
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-    
-    try:
-        # 🔥 이미지 서버에서 이미지를 제대로 받아오는지 확인
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
+def create_cover_image(prompt, width, height, title_text, output_path, seed, custom_img_path=None):
+    # 🌟 사용자가 업로드한 이미지가 있을 경우 (자동 크롭 및 비율 맞춤)
+    if custom_img_path and os.path.exists(custom_img_path):
+        img = Image.open(custom_img_path).convert("RGBA")
+        target_ratio = width / height
+        img_ratio = img.width / img.height
         
-        if 'image' not in response.headers.get('content-type', '').lower():
-            raise ValueError("API 서버가 이미지가 아닌 데이터를 반환했습니다.")
+        # 가로가 더 길면 양옆을 자름
+        if img_ratio > target_ratio:
+            new_w = int(img.height * target_ratio)
+            left = (img.width - new_w) // 2
+            img = img.crop((left, 0, left + new_w, img.height))
+        # 세로가 더 길면 위아래를 자름
+        else:
+            new_h = int(img.width / target_ratio)
+            top = (img.height - new_h) // 2
+            img = img.crop((0, top, img.width, top + new_h))
             
-        with open(output_path, "wb") as f: 
-            f.write(response.content)
-            
-        img = Image.open(output_path).convert("RGBA")
+        img = img.resize((width, height), Image.Resampling.LANCZOS)
         
-    except Exception as e:
-        # 🔥 에러 발생 시 앱을 터뜨리지 않고 어두운 배경색을 자동 생성하는 무적 방어막
-        st.toast(f"⚠️ 이미지 서버 혼잡으로 기본 배경을 사용합니다.")
-        img = Image.new("RGBA", (width, height), (35, 35, 40, 255))
-    
+    # 🌟 AI 생성 시도
+    else:
+        safe_prompt = re.sub(r'\s+', ' ', prompt).strip()
+        encoded_prompt = urllib.parse.quote(safe_prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        
+        try:
+            response = requests.get(url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            if 'image' not in response.headers.get('content-type', '').lower():
+                raise Exception("API 반환 오류")
+                
+            with open(output_path, "wb") as f: 
+                f.write(response.content)
+                
+            img = Image.open(output_path).convert("RGBA")
+        except Exception as e:
+            # 실패 시 명확한 안내창을 위해 에러 전송
+            raise ImageGenerationError()
+            
+    # 공통: 텍스트 씌우기
     draw = ImageDraw.Draw(img)
     title_font = ImageFont.truetype(font_path, 40 if width == 1280 else 32)
     x = width / 2
@@ -113,13 +134,15 @@ def create_cover_image(prompt, width, height, title_text, output_path, seed):
     img.convert("RGB").save(output_path)
     img.close()
 
-# 🎬 스크롤 함수 (마스크 기법)
+# 🎬 스크롤 함수 (마스크 기법 & 줄바꿈 완벽 유지)
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
-    lines = [line.strip() for line in lyrics_text.split('\n') if line.strip()]
     
-    if not lines:
+    # 🔥 빈 줄(엔터)을 완벽히 유지하도록 수정 (공백 제거 로직 삭제)
+    lines = lyrics_text.rstrip().split('\n') 
+    
+    if not lyrics_text.strip():
         clip = ImageClip(np.array(base_img.convert("RGB"))).set_duration(duration).set_audio(audio_clip)
         clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1, logger=logger)
         clip.close()
@@ -139,8 +162,8 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     step_y = line_height * line_spacing
     total_text_height = len(lines) * step_y
     
-    window_top = int(height * 0.25)   # 상단 25% (제목 아래에서 사라짐)
-    window_bottom = int(height * 0.95) # 하단 95% (아래 5% 지점에서 나타남)
+    window_top = int(height * 0.25)   # 상단 25% 
+    window_bottom = int(height * 0.95) # 하단 95% 
     window_height = window_bottom - window_top
 
     def make_frame(t):
@@ -175,8 +198,10 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
 # ==========================================
 st.sidebar.header("1. 기본 설정")
 uploaded_audio = st.sidebar.file_uploader("🎧 음원 파일 (WAV, MP3)", type=['wav', 'mp3'])
+# 🔥 커스텀 이미지 업로더 추가
+uploaded_image = st.sidebar.file_uploader("🖼️ 배경 이미지 직접 업로드 (AI 생성 실패 시, 또는 직접 원할 때)", type=['jpg', 'jpeg', 'png'])
 num_shorts = st.sidebar.slider("📱 생성할 쇼츠 개수", min_value=0, max_value=4, value=0)
-lyrics = st.sidebar.text_area("📝 가사 입력 (비워두면 스크롤 없음)", height=200)
+lyrics = st.sidebar.text_area("📝 가사 입력 (줄바꿈/빈줄 완벽 유지, 대괄호[] 자동삭제)", height=200)
 
 st.header("🎨 2. 앨범 커버 초정밀 연출")
 subject = st.text_input("🎯 메인 주제/사물 (선택)", placeholder="예: 창밖을 바라보는 고양이 (영어로 쓰면 더 정확합니다)")
@@ -222,13 +247,19 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             base_name = os.path.splitext(uploaded_audio.name)[0]
             display_title = f"{base_name.split('_')[0]}\n{base_name.split('_')[1]}" if '_' in base_name else base_name
             
-            clean_lyrics_list = [line.strip() for line in re.sub(r'\[.*?\]', '', lyrics).split('\n') if line.strip()]
-            final_clean_lyrics = '\n'.join(clean_lyrics_list)
+            # 🔥 빈 줄/띄어쓰기는 완벽히 유지하고 대괄호 텍스트 [간주중] 등만 지우기
+            final_clean_lyrics = re.sub(r'\[.*?\]', '', lyrics)
             st.session_state.clean_lyrics = final_clean_lyrics 
 
-            step_title.markdown("#### 🎵 음원 파일 로딩 중...")
+            step_title.markdown("#### 🎵 음원 및 이미지 준비 중...")
             audio_path = "temp_audio.wav"
             with open(audio_path, "wb") as f: f.write(uploaded_audio.getbuffer())
+            
+            # 업로드된 이미지가 있으면 로컬에 임시 저장
+            custom_img_path = None
+            if uploaded_image is not None:
+                custom_img_path = "temp_custom_bg." + uploaded_image.name.split('.')[-1]
+                with open(custom_img_path, "wb") as f: f.write(uploaded_image.getbuffer())
             
             full_audio = AudioFileClip(audio_path)
             audio_duration = full_audio.duration
@@ -243,9 +274,9 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             final_prompt = ", ".join([p for p in prompt_parts if p])
 
             # [작업 1] 메인 영상 커버 생성
-            step_title.markdown("#### 🖼️ [1단계] 메인 앨범 커버(16:9) 생성 중...")
-            main_img_path = "temp_main_img.jpg"
-            create_cover_image(final_prompt, 1280, 720, display_title, main_img_path, seed=123)
+            step_title.markdown("#### 🖼️ [1단계] 메인 앨범 커버(16:9) 생성/적용 중...")
+            main_img_path = "temp_main_img.png"
+            create_cover_image(final_prompt, 1280, 720, display_title, main_img_path, seed=123, custom_img_path=custom_img_path)
             
             # [작업 2] 메인 영상 렌더링
             step_title.markdown("#### 🎬 [2단계] 메인 영상(16:9) 렌더링 중... (가사 애니메이션 적용)")
@@ -268,8 +299,8 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
                     progress_bar.progress(0)
                     step_title.markdown(f"#### 📱 [4단계] 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
                     
-                    shorts_img_path = f"temp_shorts_img_{i}.jpg"
-                    create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999))
+                    shorts_img_path = f"temp_shorts_img_{i}.png"
+                    create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999), custom_img_path=custom_img_path)
                     
                     short_dur = min(random.randint(35, 55), audio_duration - start_time)
                     if short_dur < 5: short_dur = 5 
@@ -302,6 +333,9 @@ if st.button("🚀 비디오 팩토리 가동하기", use_container_width=True):
             
             step_title.markdown("#### ✨ 모든 작업이 완료되었습니다! 아래로 스크롤하세요.")
 
+        except ImageGenerationError:
+            # 🔥 AI 이미지 생성 오류 발생 시 명확히 멈추고 안내
+            st.error("🚨 AI 이미지 생성 서버(Pollinations.ai)가 현재 혼잡하거나 응답하지 않습니다. 왼쪽 사이드바 [🖼️ 배경 이미지 직접 업로드] 에 원하는 이미지를 등록하신 후 다시 가동해주세요!")
         except Exception as e:
             st.error(f"오류가 발생했습니다: {e}")
     else:
