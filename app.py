@@ -28,7 +28,7 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("유튜브(가로), 틱톡/릴스(세로 풀영상), 쇼츠(하이라이트)를 각각 맞춤 이미지로 한 번에 제작하세요.")
+st.write("초고속 렌더링 엔진 탑재! 서버 메모리 부족으로 인한 튕김 현상을 완벽히 차단했습니다.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -119,20 +119,25 @@ def analyze_audio_start(audio_clip):
         if start_sec < 0 or start_sec > 40: 
             start_sec = default_start
             
+        del snd_array # 메모리 해제
         return start_sec
     except:
         return default_start
 
+# 🔥 초고속 NumPy 렌더링 엔진 (메모리 폭파 완벽 차단)
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0):
-    base_img = Image.open(image_path).convert("RGBA")
+    base_img = Image.open(image_path).convert("RGB")
+    base_img_np = np.array(base_img)
+    base_img.close()
+    
     duration = audio_clip.duration
     lines = lyrics_text.rstrip().split('\n') 
     
+    # 🌟 가사가 없으면 가벼운 정지 이미지로 즉시 렌더링
     if not lyrics_text.strip():
-        clip = ImageClip(np.array(base_img.convert("RGB"))).set_duration(duration).set_audio(audio_clip)
+        clip = ImageClip(base_img_np).set_duration(duration).set_audio(audio_clip)
         clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
         clip.close()
-        base_img.close()
         return
 
     lyric_font_size = 22 if width == 1280 else 20
@@ -140,7 +145,9 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     line_spacing = 2.0
     
     try:
-        dummy_bbox = ImageDraw.Draw(base_img).textbbox((0,0), "A", font=lyric_font)
+        # 가상 캔버스로 글씨 높이 측정
+        dummy_img = Image.new("RGBA", (10, 10))
+        dummy_bbox = ImageDraw.Draw(dummy_img).textbbox((0,0), "A", font=lyric_font)
         line_height = dummy_bbox[3] - dummy_bbox[1]
     except:
         line_height = lyric_font_size
@@ -152,19 +159,7 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
-    gradient_mask = Image.new("L", (width, window_height), 255)
-    draw_grad = ImageDraw.Draw(gradient_mask)
-    fade_height = int(window_height * 0.4) 
-
-    for y in range(fade_height):
-        alpha = int((y / fade_height) * 255)
-        draw_grad.line((0, y, width, y), fill=alpha)
-        
-    for y in range(window_height - fade_height, window_height):
-        dist_from_bottom = window_height - y
-        alpha = int((dist_from_bottom / fade_height) * 255)
-        draw_grad.line((0, y, width, y), fill=alpha)
-
+    # 🌟 긴 가사 이미지를 딱 한 번만 그려서 Numpy 배열로 변환
     long_img_height = window_height + total_text_height + window_height
     long_lyrics_img = Image.new("RGBA", (width, int(long_img_height)), (0, 0, 0, 0))
     draw_long = ImageDraw.Draw(long_lyrics_img)
@@ -172,10 +167,22 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     for i, line in enumerate(lines):
         lyric_y = window_height + (i * step_y)
         draw_long.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", align="center", anchor="ma")
-
-    def make_frame(t):
-        frame_img = base_img.copy()
         
+    long_lyrics_np = np.array(long_lyrics_img)
+    long_lyrics_img.close()
+
+    # 🌟 수학적 그라데이션 마스크 (메모리 객체 생성 없음)
+    fade_mask_np = np.ones((window_height, 1), dtype=np.float32)
+    fade_height = int(window_height * 0.4) 
+    for y in range(fade_height):
+        fade_mask_np[y, 0] = y / fade_height
+    for y in range(window_height - fade_height, window_height):
+        fade_mask_np[y, 0] = (window_height - y) / fade_height
+
+    base_slice_np = base_img_np[window_top:window_bottom, :]
+
+    # 🔥 초고속 벡터 연산 프레임 생성기
+    def make_frame(t):
         if t < start_sec:
             progress = 0.0 
         else:
@@ -183,30 +190,29 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
             if scroll_duration <= 0:
                 progress = 1.0
             else:
-                progress = (t - start_sec) / scroll_duration
-                progress = min(1.0, max(0.0, progress)) 
+                progress = min(1.0, max(0.0, (t - start_sec) / scroll_duration))
             
         viewport_y = int(progress * (window_height + total_text_height))
-        visible_lyrics = long_lyrics_img.crop((0, viewport_y, width, viewport_y + window_height))
         
-        current_alpha = visible_lyrics.getchannel('A')
-        blended_alpha = ImageChops.multiply(current_alpha, gradient_mask)
-        visible_lyrics.putalpha(blended_alpha)
+        # 1. 화면에 보일 부분만 배열에서 잘라냄 (초고속)
+        src_np = long_lyrics_np[viewport_y : viewport_y + window_height, :, :]
         
-        frame_img.paste(visible_lyrics, (0, window_top), visible_lyrics)
-        result_array = np.array(frame_img.convert("RGB"))
+        # 2. 알파(투명도) 채널과 블러 마스크를 수학적으로 곱함
+        alpha_np = (src_np[:, :, 3].astype(np.float32) * fade_mask_np) / 255.0
+        alpha_np = alpha_np[:, :, np.newaxis] # (H, W, 1) 형태로 맞춤
         
-        frame_img.close()
-        visible_lyrics.close()
-        return result_array
+        # 3. 투명도에 맞춰서 원본 배경과 합성
+        blended_np = src_np[:, :, :3] * alpha_np + base_slice_np * (1.0 - alpha_np)
+        
+        # 4. 결과 프레임 출력
+        out_frame = base_img_np.copy()
+        out_frame[window_top:window_bottom, :, :] = blended_np.astype(np.uint8)
+        
+        return out_frame
 
     video_clip = VideoClip(make_frame, duration=duration).set_audio(audio_clip)
     video_clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
-    
     video_clip.close()
-    base_img.close()
-    long_lyrics_img.close()
-    gradient_mask.close()
 
 # ==========================================
 # 🚀 유튜브 예약 및 다이렉트 업로드 함수
@@ -286,7 +292,7 @@ uploaded_shorts_imgs = []
 if num_shorts > 0:
     st.sidebar.write("✂️ 쇼츠 전용 배경 업로드 (세로)")
     for i in range(num_shorts):
-        upl = st.sidebar.file_uploader(f"쇼츠 {i+1} 전용 배경 이미지", type=['jpg', 'jpeg', 'png'], key=f"short_upload_{i}")
+        upl = st.sidebar.file_uploader(f"쇼츠 {i+1} 전용 배경", type=['jpg', 'jpeg', 'png'], key=f"short_upload_{i}")
         uploaded_shorts_imgs.append(upl)
 
 st.sidebar.divider()
@@ -362,13 +368,11 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             if generate_tiktok:
                 step_title.markdown(f"#### 📱 [2단계] 틱톡 풀영상(9:16) 렌더링 중... (가사 시작: {int(final_start_sec)}초)")
                 tiktok_img_path = "temp_tiktok_img.png"
-                # 🌟 전용 세로 이미지로 처리
                 process_user_image(uploaded_tiktok_img, 720, 1280, tiktok_img_path)
                 
                 tiktok_video_path = "output_tiktok_video.mp4"
                 tiktok_logger = StreamlitProgressLogger(progress_bar, progress_text, "틱톡 영상")
                 
-                # 메인 영상과 완벽히 동일한 스크롤 효과
                 generate_video_with_lyrics(tiktok_img_path, full_audio, final_clean_lyrics, tiktok_video_path, tiktok_logger, 720, 1280, start_sec=final_start_sec)
                 
                 st.session_state.tiktok_video_path = tiktok_video_path 
@@ -387,7 +391,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     step_title.markdown(f"#### ✂️ [4단계] 하이라이트 쇼츠 {i+1}/{num_shorts} 제작 중... (구간: {int(start_time)}초 부터)")
                     
                     shorts_img_path = f"temp_shorts_img_{i}.png"
-                    # 개별 쇼츠 이미지 적용
                     process_user_image(uploaded_shorts_imgs[i], 720, 1280, shorts_img_path)
                     
                     short_dur = min(random.randint(35, 55), audio_duration - start_time)
@@ -400,7 +403,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
                     
-                    # 가사 빈칸("")으로 전송 -> 가사 스크롤 아예 차단
                     generate_video_with_lyrics(shorts_img_path, shorts_audio, "", shorts_video_path, shorts_logger, 720, 1280)
                     
                     shorts_audio.close()
