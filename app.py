@@ -27,7 +27,7 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("전주/후주를 제외하고 원하는 구간에만 가사가 스크롤되도록 싱크 조절 기능이 추가되었습니다.")
+st.write("AI가 곡의 파형을 분석하여 전주와 후주를 자동으로 건너뛰고 자막 싱크를 맞춥니다.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -46,23 +46,6 @@ class StreamlitProgressLogger(ProgressBarLogger):
             self.st_bar.progress(percent)
             task_type = "오디오 합성 중" if bar == 'chunk' else "비디오 렌더링 중"
             self.st_text.text(f"⏳ {self.prefix} - {task_type}: {int(percent * 100)}%")
-
-# ==========================================
-# ⚙️ 시간 변환 유틸리티
-# ==========================================
-def parse_time_to_sec(time_str, default_val):
-    """ '00:15' 같은 문자열을 초 단위(15) 정수로 변환합니다. """
-    try:
-        time_str = time_str.strip()
-        if not time_str:
-            return default_val
-        if ":" in time_str:
-            m, s = time_str.split(":")
-            return int(m) * 60 + int(s)
-        else:
-            return int(time_str)
-    except:
-        return default_val
 
 # ==========================================
 # ⚙️ 핵심 알고리즘 
@@ -95,7 +78,49 @@ def process_user_image(uploaded_file, width, height, output_path):
     img.convert("RGB").save(output_path)
     img.close()
 
-# 🔥 시네마틱 가사 스크롤 렌더링 (싱크 타이머 적용)
+# 🌟 AI 오디오 파형 분석기 (전주/후주 자동 인식)
+def analyze_audio_sync(audio_clip):
+    duration = audio_clip.duration
+    default_start = min(15.0, duration * 0.1)
+    default_end = max(duration - 15.0, duration * 0.9)
+    
+    try:
+        # 서버 메모리 폭파 방지를 위해 초당 2번(fps=2)만 파형 추출
+        snd_array = audio_clip.to_soundarray(fps=2)
+        if len(snd_array.shape) > 1:
+            snd_array = snd_array.mean(axis=1)
+            
+        rms = np.abs(snd_array)
+        threshold = np.max(rms) * 0.15 # 전체 볼륨의 15%를 넘어가는 지점을 노래 시작으로 간주
+        
+        start_idx = 0
+        for i in range(len(rms)):
+            if rms[i] > threshold:
+                start_idx = i
+                break
+                
+        end_idx = len(rms) - 1
+        for i in range(len(rms)-1, -1, -1):
+            if rms[i] > threshold:
+                end_idx = i
+                break
+                
+        start_sec = start_idx / 2.0
+        end_sec = end_idx / 2.0
+        
+        # 보컬 시작 4초 전부터 자막이 올라오도록 센스있게 시간 조절
+        start_sec = max(0, start_sec - 4.0)
+        end_sec = min(duration, end_sec + 4.0)
+        
+        # 분석이 너무 이상하게 튀면 기본값 사용
+        if start_sec < 0 or start_sec > 40: start_sec = default_start
+        if duration - end_sec < 0 or duration - end_sec > 40: end_sec = default_end
+            
+        return start_sec, end_sec
+    except:
+        return default_start, default_end
+
+# 🔥 시네마틱 가사 스크롤 렌더링 (상단 40% & AI 자동 싱크 적용)
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0, end_sec=None):
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
@@ -125,10 +150,12 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     step_y = line_height * line_spacing
     total_text_height = int(len(lines) * step_y)
     
+    # 🌟 스크롤 창문 영역: 상단 40%부터 하단 95%까지만
     window_top = int(height * 0.40)   
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
+    # 🌟 시네마틱 페이드(블러) 마스크 생성
     gradient_mask = Image.new("L", (width, window_height), 255)
     draw_grad = ImageDraw.Draw(gradient_mask)
     fade_height = int(window_height * 0.4) 
@@ -153,14 +180,14 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     def make_frame(t):
         frame_img = base_img.copy()
         
-        # 🌟 가사 싱크 타이머 로직 적용
+        # 🌟 AI 자동 싱크 타이머 로직
         if t < start_sec:
-            progress = 0.0 # 시작 시간 전까지는 가사가 맨 아래 숨어서 대기
+            progress = 0.0 # 시작 시간 전까지는 가사가 화면 맨 아래 투명한 곳에 숨어서 대기
         elif t > end_sec:
-            progress = 1.0 # 종료 시간 이후로는 가사가 맨 위로 다 올라가서 투명해짐
+            progress = 1.0 # 곡이 끝나면 가사가 화면 맨 위로 다 올라가서 사라짐
         else:
             scroll_duration = end_sec - start_sec
-            progress = (t - start_sec) / scroll_duration # 지정된 구간 동안만 정확히 스크롤
+            progress = (t - start_sec) / scroll_duration
             
         viewport_y = int(progress * (window_height + total_text_height))
         visible_lyrics = long_lyrics_img.crop((0, viewport_y, width, viewport_y + window_height))
@@ -258,15 +285,8 @@ if num_shorts > 0:
         uploaded_shorts_imgs.append(upl)
 
 st.sidebar.divider()
-lyrics = st.sidebar.text_area("📝 가사 입력 (메인 영상에만 적용. []는 자동삭제)", height=150)
-
-# 🌟 가사 싱크 타이머 UI 추가
-st.sidebar.write("⏱️ 가사 스크롤 싱크 조절 (선택)")
-col_t1, col_t2 = st.sidebar.columns(2)
-with col_t1:
-    sync_start = st.text_input("시작 (예: 00:15)", placeholder="00:00")
-with col_t2:
-    sync_end = st.text_input("종료 (예: 04:10)", placeholder="비워두면 곡 끝까지")
+st.sidebar.write("✨ **AI가 자동으로 전주를 분석하여 스크롤 타이밍을 맞춥니다.**")
+lyrics = st.sidebar.text_area("📝 가사 입력 (메인 영상에만 적용. []는 자동삭제)", height=200)
 
 # ==========================================
 # 🚀 렌더링 시작 및 실시간 모니터링
@@ -298,27 +318,27 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             final_clean_lyrics = re.sub(r'\[.*?\]', '', lyrics)
             st.session_state.clean_lyrics = final_clean_lyrics 
 
-            step_title.markdown("#### 🎵 음원 및 이미지 준비 중...")
+            step_title.markdown("#### 🎵 음원 분석 및 이미지 준비 중...")
             audio_path = "temp_audio.wav"
             with open(audio_path, "wb") as f: f.write(uploaded_audio.getbuffer())
             
             full_audio = AudioFileClip(audio_path)
             audio_duration = full_audio.duration
             
-            # 🌟 사용자가 입력한 싱크 시간을 초 단위로 변환
-            start_sec = parse_time_to_sec(sync_start, 0)
-            end_sec = parse_time_to_sec(sync_end, audio_duration)
+            # 🌟 AI 파형 분석을 통한 자동 싱크 추출
+            auto_start, auto_end = analyze_audio_sync(full_audio)
+            st.toast(f"🤖 AI 분석 완료: 가사가 {int(auto_start)}초 부터 올라옵니다!")
 
             if generate_main:
-                step_title.markdown("#### 🎬 [1단계] 메인 영상(16:9) 렌더링 중...")
+                step_title.markdown(f"#### 🎬 [1단계] 메인 영상 렌더링 중... (AI 분석 가사시작: {int(auto_start)}초)")
                 main_img_path = "temp_main_img.png"
                 process_user_image(uploaded_main_img, 1280, 720, main_img_path)
                 
                 main_video_path = "output_main_video.mp4"
                 main_logger = StreamlitProgressLogger(progress_bar, progress_text, "메인 영상")
                 
-                # 🌟 싱크 타이머 변수 전달
-                generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720, start_sec=start_sec, end_sec=end_sec)
+                # AI가 계산한 start_sec와 end_sec 전달
+                generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720, start_sec=auto_start, end_sec=auto_end)
                 
                 st.session_state.main_video_path = main_video_path 
                 del main_logger
