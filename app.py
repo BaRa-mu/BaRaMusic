@@ -8,7 +8,7 @@ import numpy as np
 from datetime import datetime, timedelta, timezone
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip
 import moviepy.audio.fx.all as afx
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops
 from proglog import ProgressBarLogger
 
 st.set_page_config(page_title="은혜로운 찬양 팩토리", page_icon="🕊️", layout="wide")
@@ -28,10 +28,10 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("통신 과부하 차단 및 순수 NumPy 엔진 탑재로 서버 튕김을 완벽히 해결했습니다.")
+st.write("오디오 분리 렌더링 엔진 탑재! 에러 없이 메인과 쇼츠를 완벽하게 생성합니다.")
 
 # ==========================================
-# 🌟 통신 과부하 차단 진행률 로거 (핵심 픽스)
+# 🌟 통신 과부하 차단 진행률 로거
 # ==========================================
 class StreamlitProgressLogger(ProgressBarLogger):
     def __init__(self, st_bar, st_text, prefix):
@@ -39,13 +39,12 @@ class StreamlitProgressLogger(ProgressBarLogger):
         self.st_bar = st_bar
         self.st_text = st_text
         self.prefix = prefix
-        self.last_percent = 0.0 # 🌟 이전 진행률 저장용
+        self.last_percent = 0.0 
 
     def bars_callback(self, bar, attr, value, old_value=None):
         total = self.bars[bar]['total']
         if total > 0:
             percent = value / total
-            # 🌟 무한 업데이트로 인한 FFMPEG 크래시 방지: 1% 이상 오를 때만 갱신!
             if percent - self.last_percent >= 0.01 or percent >= 1.0:
                 self.st_bar.progress(min(1.0, percent))
                 task_type = "오디오 합성 중" if bar == 'chunk' else "비디오 렌더링 중"
@@ -77,7 +76,7 @@ def find_highlights_lite(duration_sec, num_highlights=0):
     return highlights
 
 def process_user_image(uploaded_file, width, height, output_path):
-    img = Image.open(uploaded_file).convert("RGB") # 알파 채널 제거하여 메모리 최적화
+    img = Image.open(uploaded_file).convert("RGB")
     target_ratio = width / height
     img_ratio = img.width / img.height
     
@@ -119,10 +118,9 @@ def analyze_audio_start(audio_clip):
     except: return default_start
 
 # ==========================================
-# 🔥 초고속 순수 NumPy 렌더링 엔진 (핵심)
+# 🔥 초고속 순수 NumPy 렌더링 엔진
 # ==========================================
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0):
-    # 1. 원본 배경을 램에 한 번만 올림
     base_img = Image.open(image_path).convert("RGB")
     base_img_np = np.array(base_img)
     base_img.close()
@@ -130,10 +128,10 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     duration = audio_clip.duration
     lines = lyrics_text.rstrip().split('\n') 
     
-    # 🌟 가사 없으면 1fps 초고속 저장
+    # 🌟 쇼츠(가사 없음)인 경우 초경량 렌더링!
     if not lyrics_text.strip():
         clip = ImageClip(base_img_np).set_duration(duration).set_audio(audio_clip)
-        clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
+        clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
         clip.close()
         return
 
@@ -154,7 +152,6 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
-    # 2. 아주 긴 도화지에 가사를 한 번만 모두 그림
     long_img_height = window_height + total_text_height + window_height
     long_lyrics_img = Image.new("RGBA", (width, int(long_img_height)), (0, 0, 0, 0))
     draw_long = ImageDraw.Draw(long_lyrics_img)
@@ -163,11 +160,9 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         lyric_y = window_height + (i * step_y)
         draw_long.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", align="center", anchor="ma")
 
-    # 3. 그린 도화지를 NumPy 배열로 변환 후 객체 삭제 (메모리 확보)
     long_lyrics_np = np.array(long_lyrics_img)
     long_lyrics_img.close()
 
-    # 4. 블러(페이드 아웃) 마스크를 수학 배열로 만듦
     fade_mask = np.ones((window_height, width, 1), dtype=np.float32)
     fade_height = int(window_height * 0.4) 
     for y in range(fade_height):
@@ -175,10 +170,8 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     for y in range(window_height - fade_height, window_height):
         fade_mask[y, :, 0] = (window_height - y) / fade_height
 
-    # 5. 배경 이미지에서 자막이 그려질 창문 크기만큼만 복사해둠
     bg_slice = base_img_np[window_top:window_bottom, :, :].astype(np.float32)
 
-    # 🔥 6. 순수 수학 연산 프레임 메이커 (메모리 누수 완전 제로)
     def make_frame(t):
         if t < start_sec: progress = 0.0 
         else:
@@ -187,17 +180,10 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
             else: progress = min(1.0, max(0.0, (t - start_sec) / scroll_duration))
             
         viewport_y = int(progress * (window_height + total_text_height))
-        
-        # 전체 텍스트 배열에서 현재 화면에 보일 부분만 슬라이싱
         src_np = long_lyrics_np[viewport_y : viewport_y + window_height, :, :]
-        
-        # 텍스트의 투명도(Alpha)와 그라데이션 마스크를 곱함
         alpha = (src_np[:, :, 3].astype(np.float32) / 255.0)[:, :, np.newaxis] * fade_mask
-        
-        # 원본 배경과 텍스트를 합성
         blended = src_np[:, :, :3] * alpha + bg_slice * (1.0 - alpha)
         
-        # 출력 프레임 생성 및 반환
         out_frame = base_img_np.copy()
         out_frame[window_top:window_bottom, :, :] = blended.astype(np.uint8)
         return out_frame
@@ -329,6 +315,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 final_start_sec = analyze_audio_start(full_audio)
                 st.toast(f"🤖 AI 분석 완료: {int(final_start_sec)}초 부터 가사가 올라옵니다.")
 
+            # [작업 1] 메인 영상 렌더링 (가로)
             if generate_main:
                 step_title.markdown(f"#### 🎬 [1단계] 유튜브 메인 영상(16:9) 렌더링 중... (가사: {int(final_start_sec)}초 시작)")
                 main_img_path = "temp_main_img.jpg"
@@ -342,6 +329,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 st.session_state.main_video_path = main_video_path 
                 del main_logger; gc.collect() 
 
+            # [작업 1-2] 틱톡 풀영상 렌더링 (세로)
             if generate_tiktok:
                 step_title.markdown(f"#### 📱 [2단계] 틱톡 풀영상(9:16) 렌더링 중... (가사: {int(final_start_sec)}초 시작)")
                 tiktok_img_path = "temp_tiktok_img.jpg"
@@ -355,6 +343,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 st.session_state.tiktok_video_path = tiktok_video_path 
                 del tiktok_logger; gc.collect()
 
+            # [작업 2] 쇼츠 추출 및 렌더링 (오디오 사전 추출 100% 안전기법 적용)
             if num_shorts > 0:
                 progress_bar.progress(0)
                 progress_text.empty()
@@ -371,18 +360,30 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     short_dur = min(random.randint(35, 55), audio_duration - start_time)
                     if short_dur < 5: short_dur = 5 
                     
-                    shorts_audio = full_audio.subclip(start_time, start_time + short_dur)
-                    fade_dur = min(1.5, shorts_audio.duration / 3.0)
-                    shorts_audio = shorts_audio.fx(afx.audio_fadein, fade_dur).fx(afx.audio_fadeout, fade_dur)
+                    # 🌟 1. 오디오 자르기 및 이펙트 적용
+                    sub_audio = full_audio.subclip(start_time, start_time + short_dur)
+                    fade_dur = min(1.5, short_dur / 3.0)
+                    sub_audio = sub_audio.fx(afx.audio_fadein, fade_dur).fx(afx.audio_fadeout, fade_dur)
                     
+                    # 🌟 2. 렌더링 시 충돌을 막기 위해 무조건 임시 WAV 파일로 추출해버림
+                    temp_wav_path = f"temp_short_{i}.wav"
+                    sub_audio.write_audiofile(temp_wav_path, fps=44100, logger=None)
+                    
+                    # 🌟 3. 추출된 깔끔한 WAV 파일을 읽어서 비디오 렌더링 시작
+                    fresh_audio = AudioFileClip(temp_wav_path)
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
                     
-                    generate_video_with_lyrics(shorts_img_path, shorts_audio, "", shorts_video_path, shorts_logger, 720, 1280)
+                    generate_video_with_lyrics(shorts_img_path, fresh_audio, "", shorts_video_path, shorts_logger, 720, 1280)
                     
-                    shorts_audio.close()
+                    # 🌟 4. 사용 끝난 파일 완벽 삭제 및 메모리 정리
+                    fresh_audio.close()
+                    if os.path.exists(temp_wav_path):
+                        os.remove(temp_wav_path)
+                        
                     st.session_state.shorts_paths.append(shorts_video_path)
-                    del shorts_logger, shorts_audio; gc.collect() 
+                    del shorts_logger, fresh_audio, sub_audio
+                    gc.collect() 
 
             full_audio.close()
             st.session_state.is_completed = True
