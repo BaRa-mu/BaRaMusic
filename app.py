@@ -60,12 +60,10 @@ def find_highlights_lite(duration_sec, num_highlights=0):
     return highlights
 
 def process_user_image(uploaded_file, width, height, output_path):
-    """사용자가 업로드한 이미지를 화면 비율(16:9 또는 9:16)에 맞게 자르고 조절합니다. (텍스트 렌더링 삭제됨)"""
     img = Image.open(uploaded_file).convert("RGBA")
     target_ratio = width / height
     img_ratio = img.width / img.height
     
-    # 비율에 맞춰 크롭
     if img_ratio > target_ratio:
         new_w = int(img.height * target_ratio)
         left = (img.width - new_w) // 2
@@ -79,15 +77,15 @@ def process_user_image(uploaded_file, width, height, output_path):
     img.convert("RGB").save(output_path)
     img.close()
 
+# 🔥 RAM 폭파 방지를 위해 완전히 재설계된 스크롤 렌더링 함수
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
-    """가사 스크롤 및 마스킹 효과 (줄바꿈 완벽 유지)"""
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
     lines = lyrics_text.rstrip().split('\n') 
     
     if not lyrics_text.strip():
         clip = ImageClip(np.array(base_img.convert("RGB"))).set_duration(duration).set_audio(audio_clip)
-        clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1, logger=logger)
+        clip.write_videofile(output_path, fps=1, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
         clip.close()
         base_img.close()
         return
@@ -103,35 +101,47 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         line_height = lyric_font_size
         
     step_y = line_height * line_spacing
-    total_text_height = len(lines) * step_y
+    total_text_height = int(len(lines) * step_y)
     
     window_top = int(height * 0.25)   
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
+    # 🚀 핵심 최적화: 아주 긴 투명 이미지에 모든 가사를 딱 1번만 그립니다.
+    long_img_height = window_height + total_text_height + window_height
+    long_lyrics_img = Image.new("RGBA", (width, int(long_img_height)), (0, 0, 0, 0))
+    draw_long = ImageDraw.Draw(long_lyrics_img)
+    
+    for i, line in enumerate(lines):
+        # 상단 여백(window_height)을 두고 그리기 시작
+        lyric_y = window_height + (i * step_y)
+        draw_long.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", align="center", anchor="ma")
+
     def make_frame(t):
         frame_img = base_img.copy()
-        overlay = Image.new("RGBA", (width, window_height), (0, 0, 0, 0))
-        draw_overlay = ImageDraw.Draw(overlay)
-        
         progress = t / duration
-        current_y = window_height - (progress * (window_height + total_text_height))
         
-        for i, line in enumerate(lines):
-            lyric_y = current_y + (i * step_y)
-            if -50 < lyric_y < window_height + 50:
-                draw_overlay.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", align="center", anchor="ma")
+        # 시간(t)에 따라 카메라(Viewport)가 아래로 이동하는 것처럼 계산
+        viewport_y = int(progress * (window_height + total_text_height))
         
-        frame_img.paste(overlay, (0, window_top), overlay)
+        # 전체 가사 이미지에서 현재 화면에 보일 부분만 크롭
+        visible_lyrics = long_lyrics_img.crop((0, viewport_y, width, viewport_y + window_height))
+        
+        # 원본 이미지에 덮어쓰기
+        frame_img.paste(visible_lyrics, (0, window_top), visible_lyrics)
         result_array = np.array(frame_img.convert("RGB"))
-        overlay.close()
+        
         frame_img.close()
+        visible_lyrics.close()
         return result_array
 
+    # audio_fps=44100 을 추가하여 오디오 코덱 충돌 방지
     video_clip = VideoClip(make_frame, duration=duration).set_audio(audio_clip)
-    video_clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", preset="ultrafast", threads=1, logger=logger)
+    video_clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
+    
     video_clip.close()
     base_img.close()
+    long_lyrics_img.close()
 
 # ==========================================
 # 🚀 유튜브 다이렉트 업로드 함수
@@ -157,7 +167,7 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status):
             creds.refresh(Request())
         else:
             if not os.path.exists("client_secrets.json"):
-                return False, "🚨 앱 폴더에 `client_secrets.json` 파일이 없습니다. Google Cloud Console에서 YouTube Data API v3 사용자 인증 정보를 다운로드해 폴더에 넣어주세요."
+                return False, "🚨 앱 폴더에 `client_secrets.json` 파일이 없습니다. 폴더에 넣어주세요."
             flow = InstalledAppFlow.from_client_secrets_file("client_secrets.json", SCOPES)
             creds = flow.run_local_server(port=0)
         with open("token.json", "w") as token:
@@ -205,7 +215,6 @@ lyrics = st.sidebar.text_area("📝 가사 입력 (비워두면 스크롤 없음
 # 🚀 렌더링 시작 및 실시간 모니터링
 # ==========================================
 if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
-    # 필수 파일 검증
     if uploaded_audio is None:
         st.error("⚠️ 음원 파일을 업로드해주세요.")
     elif uploaded_main_img is None:
@@ -296,7 +305,6 @@ if st.session_state.is_completed:
     else:
         st.success("🎉 모든 영상이 성공적으로 렌더링되었습니다!")
         
-        # 탭을 사용하여 미리보기 화면 정리
         tabs = st.tabs(["📺 메인 영상"] + [f"📱 쇼츠 {i+1}" for i in range(len(st.session_state.shorts_paths))])
         
         with tabs[0]:
@@ -312,11 +320,9 @@ if st.session_state.is_completed:
 
         st.divider()
         
-        # 🔥 유튜브 다이렉트 업로드 섹션
         st.header("🚀 유튜브 다이렉트 업로드")
         st.info("이 기능을 사용하려면 파이썬 환경에 구글 API 라이브러리가 설치되어 있어야 하며, 같은 폴더에 `client_secrets.json` 파일이 있어야 합니다.")
         
-        # 업로드할 파일 선택
         upload_options = {"메인 영상": st.session_state.main_video_path}
         for i, p in enumerate(st.session_state.shorts_paths):
             upload_options[f"쇼츠 영상 {i+1}"] = p
@@ -324,8 +330,8 @@ if st.session_state.is_completed:
         selected_vid_key = st.selectbox("업로드할 영상 선택", list(upload_options.keys()))
         selected_vid_path = upload_options[selected_vid_key]
         
-        yt_title = st.text_input("📌 영상 제목", value=f"{st.session_state.base_name} - {selected_vid_key}")
-        yt_desc = st.text_area("📝 영상 설명", value="오늘의 추천곡 플레이리스트입니다. 가사와 함께 감상해보세요!\n\n#음악추천 #플레이리스트", height=100)
+        yt_title = st.text_input("📌 영상 제목", value=f"{st.session_state.base_name}")
+        yt_desc = st.text_area("📝 영상 설명", value="오늘의 추천곡입니다. 가사와 함께 감상해보세요!\n\n#음악추천 #플레이리스트", height=100)
         yt_tags = st.text_input("🏷️ 태그 (쉼표로 구분)", value="음악추천, 플레이리스트, 가사영상")
         yt_privacy = st.selectbox("🔒 공개 상태", ["private", "unlisted", "public"], index=0)
         
