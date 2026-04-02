@@ -8,7 +8,7 @@ import numpy as np
 from datetime import datetime, timedelta, timezone
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip
 import moviepy.audio.fx.all as afx
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageChops  # ImageChops 추가됨 (블러 효과용)
 from proglog import ProgressBarLogger
 
 st.set_page_config(page_title="은혜로운 찬양 팩토리", page_icon="🕊️", layout="wide")
@@ -27,7 +27,7 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("이미지를 업로드하고 영상을 제작한 뒤, 내 채널에 다이렉트(예약/공개)로 업로드하세요.")
+st.write("시네마틱 페이드 가사 효과가 적용되었습니다. 렌더링 후 내 채널에 직접 업로드하세요.")
 
 # ==========================================
 # 🌟 진행률 로거
@@ -78,6 +78,7 @@ def process_user_image(uploaded_file, width, height, output_path):
     img.convert("RGB").save(output_path)
     img.close()
 
+# 🔥 시네마틱 가사 스크롤 렌더링 (블러/페이드 효과 & 60% 제한)
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height):
     base_img = Image.open(image_path).convert("RGBA")
     duration = audio_clip.duration
@@ -103,10 +104,28 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     step_y = line_height * line_spacing
     total_text_height = int(len(lines) * step_y)
     
-    window_top = int(height * 0.25)   
+    # 🌟 스크롤 창문 영역 변경 (상단 60% 지점에서부터 하단 95% 지점까지만 표시)
+    window_top = int(height * 0.60)   
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
+    # 🌟 시네마틱 페이드(블러) 마스크 사전 생성 (한 번만 연산)
+    gradient_mask = Image.new("L", (width, window_height), 255)
+    draw_grad = ImageDraw.Draw(gradient_mask)
+    fade_height = int(window_height * 0.4) # 위아래 40% 영역을 부드럽게 그라데이션 처리
+
+    # 위쪽으로 사라질 때 서서히 투명해짐
+    for y in range(fade_height):
+        alpha = int((y / fade_height) * 255)
+        draw_grad.line((0, y, width, y), fill=alpha)
+        
+    # 아래쪽에서 나타날 때 서서히 진해짐
+    for y in range(window_height - fade_height, window_height):
+        dist_from_bottom = window_height - y
+        alpha = int((dist_from_bottom / fade_height) * 255)
+        draw_grad.line((0, y, width, y), fill=alpha)
+
+    # 긴 텍스트 도화지 생성
     long_img_height = window_height + total_text_height + window_height
     long_lyrics_img = Image.new("RGBA", (width, int(long_img_height)), (0, 0, 0, 0))
     draw_long = ImageDraw.Draw(long_lyrics_img)
@@ -121,6 +140,11 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         viewport_y = int(progress * (window_height + total_text_height))
         visible_lyrics = long_lyrics_img.crop((0, viewport_y, width, viewport_y + window_height))
         
+        # 🌟 여기서 마법 발생! 텍스트 이미지에 그라데이션 마스크를 곱해서 자연스럽게 사라지게 만듦
+        current_alpha = visible_lyrics.getchannel('A')
+        blended_alpha = ImageChops.multiply(current_alpha, gradient_mask)
+        visible_lyrics.putalpha(blended_alpha)
+        
         frame_img.paste(visible_lyrics, (0, window_top), visible_lyrics)
         result_array = np.array(frame_img.convert("RGB"))
         
@@ -134,9 +158,10 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     video_clip.close()
     base_img.close()
     long_lyrics_img.close()
+    gradient_mask.close()
 
 # ==========================================
-# 🚀 예약 기능을 포함한 유튜브 다이렉트 업로드 함수
+# 🚀 유튜브 예약 및 다이렉트 업로드 함수
 # ==========================================
 def upload_to_youtube(video_path, title, description, tags, privacy_status, publish_at=None):
     try:
@@ -145,7 +170,7 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
     except ImportError:
-        return False, "구글 API 라이브러리가 없습니다."
+        return False, "구글 API 라이브러리가 없습니다. 터미널에 `pip install google-api-python-client google-auth-oauthlib google-auth-httplib2` 를 실행하세요."
 
     if not os.path.exists("token.json"):
         return False, "token.json 파일이 업로드되지 않았습니다."
@@ -170,11 +195,10 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
                 "categoryId": "10" # Music
             },
             "status": {
-                "privacyStatus": privacy_status # 예약 업로드 시엔 무조건 'private'로 들어옴
+                "privacyStatus": privacy_status
             }
         }
         
-        # 예약 업로드 날짜/시간이 전달되었다면 추가
         if publish_at:
             body["status"]["publishAt"] = publish_at
 
@@ -301,7 +325,7 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
             st.error(f"오류가 발생했습니다: {e}")
 
 # ==========================================
-# 🎉 완료 화면 및 유튜브 다이렉트 업로드 (CCM 전용 템플릿 & 예약업로드)
+# 🎉 완료 화면 및 유튜브 다이렉트 업로드
 # ==========================================
 if st.session_state.is_completed:
     st.divider()
@@ -342,8 +366,8 @@ if st.session_state.is_completed:
 
         st.divider()
         
-        # 🔥 클라우드용 안전한 유튜브 다이렉트 업로드 섹션
-        st.header("🚀 유튜브 다이렉트 업로드")
+        # 🔥 클라우드용 유튜브 다이렉트 업로드 섹션
+        st.header("🚀 유튜브 다이렉트 예약/업로드")
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -352,10 +376,8 @@ if st.session_state.is_completed:
             token_file = st.file_uploader("🎫 token.json 업로드 (PC에서 생성한 파일)", type=['json'])
 
         if client_file and token_file:
-            with open("client_secrets.json", "wb") as f:
-                f.write(client_file.getbuffer())
-            with open("token.json", "wb") as f:
-                f.write(token_file.getbuffer())
+            with open("client_secrets.json", "wb") as f: f.write(client_file.getbuffer())
+            with open("token.json", "wb") as f: f.write(token_file.getbuffer())
                 
             upload_options = {}
             if st.session_state.main_video_path and os.path.exists(st.session_state.main_video_path):
@@ -368,7 +390,6 @@ if st.session_state.is_completed:
                 selected_vid_key = st.selectbox("📌 업로드할 영상 선택", list(upload_options.keys()))
                 selected_vid_path = upload_options[selected_vid_key]
                 
-                # 🌟 CCM 맞춤형 유튜브 내용 템플릿
                 yt_title = st.text_input("📝 영상 제목", value=f"[{st.session_state.base_name}] 은혜로운 찬양 플레이리스트")
                 
                 ccm_desc_template = f"""할렐루야! 오늘 함께 나눌 찬양은 '{st.session_state.base_name}' 입니다. 🌿
@@ -382,38 +403,34 @@ if st.session_state.is_completed:
 
 #CCM #찬양 #예배 #은혜 #위로 #기도 #기독교 #교회 #찬양추천 #플레이리스트"""
                 
-                yt_desc = st.text_area("📜 영상 설명 (자연스러운 CCM 소개글로 세팅됨)", value=ccm_desc_template, height=300)
+                yt_desc = st.text_area("📜 영상 설명", value=ccm_desc_template, height=300)
                 
-                # 🌟 CCM 맞춤형 태그 폭탄
                 ccm_tags = "CCM, 찬양, 예배, 은혜, 기독교, 교회, 찬송가, 워십, 복음성가, 기도, 묵상, 힐링찬양, 위로, 평안, 찬양추천, 플레이리스트, worship, praise, 주일예배, 특송, 은혜로운찬양, 아침찬양, 수면찬양"
                 yt_tags = st.text_input("🏷️ 검색 태그 (쉼표로 구분)", value=ccm_tags)
                 
-                # 🌟 예약 업로드 기능 추가
                 privacy_ui = st.selectbox("🔒 공개 상태", ["비공개 (Private)", "일부 공개 (Unlisted)", "공개 (Public)", "예약 업로드 (Scheduled)"])
                 
                 upload_date = None
                 upload_time = None
                 if privacy_ui == "예약 업로드 (Scheduled)":
-                    st.info("💡 예약 업로드 시각은 반드시 '현재 시각보다 미래'여야 합니다.")
+                    st.info("💡 예약 시간은 반드시 '현재 시각보다 미래'여야 합니다.")
                     col_d, col_t = st.columns(2)
                     with col_d: upload_date = st.date_input("🗓️ 날짜 선택")
                     with col_t: upload_time = st.time_input("⏰ 한국 시간(KST) 기준 시간 선택")
                 
                 if st.button("🔥 유튜브 채널로 전송", type="primary"):
-                    with st.spinner("유튜브 서버로 안전하게 업로드 중입니다..."):
-                        # 변수 맵핑
+                    with st.spinner("유튜브 서버로 안전하게 업로드 중입니다... (영상 크기에 따라 수 분 소요됨)"):
                         privacy_map = {
                             "비공개 (Private)": "private",
                             "일부 공개 (Unlisted)": "unlisted",
                             "공개 (Public)": "public",
-                            "예약 업로드 (Scheduled)": "private" # 예약은 무조건 private로 올라가고 publishAt이 설정됨
+                            "예약 업로드 (Scheduled)": "private"
                         }
                         final_privacy = privacy_map[privacy_ui]
                         final_publish_at = None
                         
-                        # 예약 업로드 시 KST -> UTC(ISO 8601) 변환
                         if privacy_ui == "예약 업로드 (Scheduled)":
-                            kst_tz = timezone(timedelta(hours=9)) # 한국 시간 (UTC+9)
+                            kst_tz = timezone(timedelta(hours=9))
                             dt_kst = datetime.combine(upload_date, upload_time, tzinfo=kst_tz)
                             dt_utc = dt_kst.astimezone(timezone.utc)
                             final_publish_at = dt_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
