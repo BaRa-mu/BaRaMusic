@@ -2,3 +2,12 @@ streamlit
 requests
 moviepy==1.0.3
 Pillow
+streamlit
+requests
+numpy
+moviepy
+Pillow
+proglog
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
