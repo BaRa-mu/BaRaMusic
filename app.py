@@ -28,7 +28,7 @@ if not os.path.exists(font_path):
     with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
 
 st.title("🕊️ 은혜로운 찬양 영상 팩토리")
-st.write("오디오 분리 렌더링 엔진 탑재! 에러 없이 메인과 쇼츠를 완벽하게 생성합니다.")
+st.write("틱톡/쇼츠 세로 영상에 최적화된 하단 전용 가사 스크롤이 적용되었습니다.")
 
 # ==========================================
 # 🌟 통신 과부하 차단 진행률 로거
@@ -76,7 +76,7 @@ def find_highlights_lite(duration_sec, num_highlights=0):
     return highlights
 
 def process_user_image(uploaded_file, width, height, output_path):
-    img = Image.open(uploaded_file).convert("RGB")
+    img = Image.open(uploaded_file).convert("RGB") 
     target_ratio = width / height
     img_ratio = img.width / img.height
     
@@ -118,7 +118,7 @@ def analyze_audio_start(audio_clip):
     except: return default_start
 
 # ==========================================
-# 🔥 초고속 순수 NumPy 렌더링 엔진
+# 🔥 1. 메인/틱톡용 가사 스크롤 엔진 (비율 맞춤 최적화)
 # ==========================================
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0):
     base_img = Image.open(image_path).convert("RGB")
@@ -127,15 +127,21 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     
     duration = audio_clip.duration
     lines = lyrics_text.rstrip().split('\n') 
-    
-    # 🌟 쇼츠(가사 없음)인 경우 초경량 렌더링!
+
     if not lyrics_text.strip():
         clip = ImageClip(base_img_np).set_duration(duration).set_audio(audio_clip)
         clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
         clip.close()
         return
 
-    lyric_font_size = 22 if width == 1280 else 20
+    # 🌟 틱톡(세로)일 경우 폰트를 키우고 스크롤 영역을 하단 40%로 제한!
+    if width == 720 and height == 1280:
+        lyric_font_size = 24  # 기존 20에서 확대
+        window_top = int(height * 0.60) # 위에서 60% 내려온 지점 (하단 40% 영역의 시작점)
+    else:
+        lyric_font_size = 22  # 메인(가로) 폰트 크기
+        window_top = int(height * 0.40) # 기존처럼 상단 40% 지점
+        
     lyric_font = ImageFont.truetype(font_path, lyric_font_size)
     line_spacing = 2.0
     
@@ -148,7 +154,6 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     step_y = line_height * line_spacing
     total_text_height = int(len(lines) * step_y)
     
-    window_top = int(height * 0.40)   
     window_bottom = int(height * 0.95) 
     window_height = window_bottom - window_top
 
@@ -191,6 +196,14 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     video_clip = VideoClip(make_frame, duration=duration).set_audio(audio_clip)
     video_clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
     video_clip.close()
+
+# ==========================================
+# 🔥 2. 쇼츠 전용 초경량 엔진 (메모리 폭파 방지)
+# ==========================================
+def generate_static_video(image_path, audio_clip, output_path, logger):
+    clip = ImageClip(image_path).set_duration(audio_clip.duration).set_audio(audio_clip)
+    clip.write_videofile(output_path, fps=2, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
+    clip.close()
 
 # ==========================================
 # 🚀 유튜브 예약 및 다이렉트 업로드 함수
@@ -315,7 +328,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 final_start_sec = analyze_audio_start(full_audio)
                 st.toast(f"🤖 AI 분석 완료: {int(final_start_sec)}초 부터 가사가 올라옵니다.")
 
-            # [작업 1] 메인 영상 렌더링 (가로)
             if generate_main:
                 step_title.markdown(f"#### 🎬 [1단계] 유튜브 메인 영상(16:9) 렌더링 중... (가사: {int(final_start_sec)}초 시작)")
                 main_img_path = "temp_main_img.jpg"
@@ -329,7 +341,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 st.session_state.main_video_path = main_video_path 
                 del main_logger; gc.collect() 
 
-            # [작업 1-2] 틱톡 풀영상 렌더링 (세로)
             if generate_tiktok:
                 step_title.markdown(f"#### 📱 [2단계] 틱톡 풀영상(9:16) 렌더링 중... (가사: {int(final_start_sec)}초 시작)")
                 tiktok_img_path = "temp_tiktok_img.jpg"
@@ -343,7 +354,6 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                 st.session_state.tiktok_video_path = tiktok_video_path 
                 del tiktok_logger; gc.collect()
 
-            # [작업 2] 쇼츠 추출 및 렌더링 (오디오 사전 추출 100% 안전기법 적용)
             if num_shorts > 0:
                 progress_bar.progress(0)
                 progress_text.empty()
@@ -360,30 +370,24 @@ if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
                     short_dur = min(random.randint(35, 55), audio_duration - start_time)
                     if short_dur < 5: short_dur = 5 
                     
-                    # 🌟 1. 오디오 자르기 및 이펙트 적용
                     sub_audio = full_audio.subclip(start_time, start_time + short_dur)
                     fade_dur = min(1.5, short_dur / 3.0)
                     sub_audio = sub_audio.fx(afx.audio_fadein, fade_dur).fx(afx.audio_fadeout, fade_dur)
                     
-                    # 🌟 2. 렌더링 시 충돌을 막기 위해 무조건 임시 WAV 파일로 추출해버림
                     temp_wav_path = f"temp_short_{i}.wav"
                     sub_audio.write_audiofile(temp_wav_path, fps=44100, logger=None)
                     
-                    # 🌟 3. 추출된 깔끔한 WAV 파일을 읽어서 비디오 렌더링 시작
                     fresh_audio = AudioFileClip(temp_wav_path)
                     shorts_video_path = f"output_shorts_{i+1}.mp4"
                     shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
                     
-                    generate_video_with_lyrics(shorts_img_path, fresh_audio, "", shorts_video_path, shorts_logger, 720, 1280)
+                    generate_static_video(shorts_img_path, fresh_audio, shorts_video_path, shorts_logger)
                     
-                    # 🌟 4. 사용 끝난 파일 완벽 삭제 및 메모리 정리
                     fresh_audio.close()
-                    if os.path.exists(temp_wav_path):
-                        os.remove(temp_wav_path)
+                    if os.path.exists(temp_wav_path): os.remove(temp_wav_path)
                         
                     st.session_state.shorts_paths.append(shorts_video_path)
-                    del shorts_logger, fresh_audio, sub_audio
-                    gc.collect() 
+                    del shorts_logger, fresh_audio, sub_audio; gc.collect() 
 
             full_audio.close()
             st.session_state.is_completed = True
