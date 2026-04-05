@@ -1,10 +1,11 @@
 import streamlit as st
 import re
+import requests
 import utils
 
 def render_tab1():
     st.header("📝 수노(Suno AI) 완벽 프롬프트 & 가사 생성기")
-    st.write("옵션을 선택하고 생성 버튼을 누르면, 수동 타이핑 없이 수노(Suno)에 바로 복사할 수 있는 완벽한 세트가 만들어집니다.")
+    st.write("옵션을 선택하고 생성 버튼을 누르면, 수노(Suno)에 바로 복사할 수 있는 완벽한 세트가 만들어집니다.")
     
     suno_subject = st.text_input("🎯 곡의 주제/메시지 (필수 입력, 예: 지친 하루의 위로, 십자가의 사랑)")
     
@@ -39,7 +40,6 @@ def render_tab1():
         else:
             with st.spinner("AI가 프로 작사가 모드로 진입하여 깊이 있는 가사와 프롬프트를 작성 중입니다... (약 10초 소요)"):
                 
-                # 🔥 작사 퀄리티 극대화를 위한 초정밀 프롬프트
                 query = f"""You are a top-tier, award-winning professional lyricist and music producer.
 Create a highly artistic, human-like song based on the following details.
 
@@ -47,10 +47,10 @@ Topic: {suno_subject}
 Style: {s_selected_genre}, {s_mood}, {s_tempo}, {s_inst}, {s_vocal}
 
 CRITICAL INSTRUCTIONS FOR LYRICS & TITLE:
-1. AVOID AI cliches: Do NOT use obvious, cheesy, or robotic phrases like "희망의 빛", "새로운 시작", "함께 걸어가요", "어둠을 뚫고", "빛이 되리라".
-2. Use poetic, metaphorical, and deeply emotional Korean expressions. Focus on sensory details, authentic human feelings, everyday moments, or profound spiritual reflections.
-3. The Title must be sophisticated, modern, and poetic. Not a simple summary of the topic.
-4. You MUST strictly use the 4 exact tags below to start each section. Do not use asterisks (**). Do NOT write conversational text like "Here is your song".
+1. AVOID AI cliches: Do NOT use obvious, cheesy, or robotic phrases like "희망의 빛", "새로운 시작", "함께 걸어가요", "어둠을 뚫고".
+2. Use poetic, metaphorical, and deeply emotional Korean expressions.
+3. The Title must be sophisticated and poetic.
+4. You MUST strictly use the 4 exact tags below to start each section. Do not use asterisks (**). Do NOT write conversational text.
 
 TitleKR:
 TitleEN:
@@ -60,25 +60,29 @@ Lyrics:
 For "Prompt:", write a highly detailed, 800 to 1000 character English prompt describing the genre, mood, rhythm, specific instruments, and vocal style. Use comma-separated keywords. No line breaks.
 For "Lyrics:", write the full Korean lyrics. You MUST include tags like [Intro], [Verse 1], [Chorus], [Bridge], [Outro].
 """
-                
-                res_text = utils.generate_ai_text(query)
-                clean_text = res_text.replace("**", "").replace("##", "")
-                
-                t_kr = "제목 생성 오류"
-                t_en = "TitleError"
-                prmpt = fallback_prompt
-                lyr = "가사를 생성하지 못했습니다."
-
                 try:
+                    # 🔥 에러의 주범이었던 GET 방식(URL)을 버리고, 용량 제한이 없는 POST(JSON) 방식으로 교체!
+                    response = requests.post(
+                        "https://text.pollinations.ai/",
+                        json={"messages": [{"role": "user", "content": query}]},
+                        timeout=45
+                    )
+                    response.raise_for_status()
+                    res_text = response.text
+                    
+                    clean_text = res_text.replace("**", "").replace("##", "")
+                    
+                    t_kr = "제목 생성 오류"
+                    t_en = "TitleError"
+                    prmpt = fallback_prompt
+                    lyr = "가사를 생성하지 못했습니다."
+
                     if "TitleKR:" in clean_text and "TitleEN:" in clean_text:
                         t_kr = clean_text.split("TitleKR:")[1].split("TitleEN:")[0].strip()
-                    
                     if "TitleEN:" in clean_text and "Prompt:" in clean_text:
                         t_en = clean_text.split("TitleEN:")[1].split("Prompt:")[0].strip()
-
                     if "Prompt:" in clean_text and "Lyrics:" in clean_text:
                         prmpt = clean_text.split("Prompt:")[1].split("Lyrics:")[0].strip().replace("\n", " ")
-                        
                     if "Lyrics:" in clean_text:
                         lyr_raw = clean_text.split("Lyrics:")[1].strip()
                         lyr = re.split(r'\n\s*(가사 포인트|참고:|Note:|설명:)', lyr_raw)[0].strip()
@@ -90,18 +94,19 @@ For "Lyrics:", write the full Korean lyrics. You MUST include tags like [Intro],
                     st.session_state.final_prompt = prmpt[:995] if len(prmpt) > 10 else fallback_prompt
                     st.session_state.final_lyrics = lyr
                     
+                    # 탭 2(이미지 팩토리) 연동을 위한 세션 변수
                     st.session_state.gen_title_kr = t_kr
                     st.session_state.gen_title_en = t_en
                     
                     st.success("🎉 세련되고 감성적인 작사가 완료되었습니다! 아래의 📋 아이콘을 눌러 수노(Suno AI)에 바로 붙여넣기 하세요.")
                 
                 except Exception as e:
-                    st.error("⚠️ AI가 형식 규칙을 어겼습니다. [생성] 버튼을 다시 한 번 눌러주세요.")
-                    st.session_state.final_lyrics = clean_text
+                    # 상세한 에러 로그 출력 방지 및 우회
+                    st.error("⚠️ AI 서버가 혼잡하여 응답이 끊겼습니다. [생성] 버튼을 한 번 더 눌러주세요.")
 
     st.divider()
     st.subheader("📋 수노(Suno) 전용 원클릭 복사존")
-    st.info("💡 우측 상단의 **📋 (복사) 아이콘**을 누르세요. 수동 편집칸은 100% 제거되었습니다.")
+    st.info("💡 우측 상단의 **📋 (복사) 아이콘**을 누르세요. 수동 편집칸은 제거되었습니다.")
 
     st.write("### 1. 🎵 Title (곡 제목)")
     st.code(st.session_state.final_title if st.session_state.final_title else "주제를 적고 생성 버튼을 누르세요.", language="text")
