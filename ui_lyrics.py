@@ -37,15 +37,20 @@ def render_tab1():
         elif not suno_subject: 
             st.error("🎯 곡의 주제를 입력해주세요!")
         else:
-            with st.spinner("구글 고성능 AI(Gemini 2.0)가 대곡을 작사하고 있습니다..."):
-                try:
-                    # 1. API 설정
-                    genai.configure(api_key=user_api_key)
-                    
-                    # 2. 리스트에서 확인된 gemini-2.0-flash 모델 강제 지정
-                    model = genai.GenerativeModel('gemini-2.0-flash')
-                    
-                    query = f"""You are a professional award-winning lyricist and music producer. 
+            status_placeholder = st.empty()
+            status_placeholder.info("🔍 사용 가능한 AI 모델을 탐색 중입니다...")
+            
+            try:
+                # 1. API 설정
+                genai.configure(api_key=user_api_key)
+                
+                # 2. 🌟 무적의 모델 탐색 루프 (리스트에 있는 것들 중 작동하는 놈 하나는 무조건 걸림)
+                candidate_models = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-2.0-flash-001', 'gemini-pro']
+                
+                res_text = ""
+                success = False
+                
+                query = f"""You are a professional award-winning lyricist. 
 Write a LONG, FULL-LENGTH song (3-4 minutes) in Korean. 
 
 Topic: {suno_subject}
@@ -56,54 +61,68 @@ Vocals: {s_vocal}
 
 [INSTRUCTIONS]
 1. TITLE: Create a poetic Korean title and its English translation.
-2. LYRICS: Write at least 30-40 lines. Structure: [Intro] -> [Verse 1] -> [Pre-Chorus] -> [Chorus] -> [Verse 2] -> [Pre-Chorus] -> [Chorus] -> [Bridge] -> [Guitar Solo] -> [Chorus] -> [Outro].
-3. PROMPT: Write an 800-1000 character English prompt. Describe instruments, rhythm, sound texture, and vocal emotion in extreme detail.
-4. NO CLICHES: Do not use robotic phrases. Use deep, human-like emotional expressions.
-5. FORMAT: Output ONLY the tags below.
+2. LYRICS: Write at least 30-40 lines. Structure: [Intro] -> [Verse 1] -> [Pre-Chorus] -> [Chorus] -> [Verse 2] -> [Pre-Chorus] -> [Chorus] -> [Bridge] -> [Chorus] -> [Outro].
+3. PROMPT: Write an 800-1000 character English prompt. Describe instruments, rhythm, texture, and vocal emotion in detail.
+4. FORMAT: Output ONLY the tags below.
 
 [TITLE_KR] (Korean Title)
 [TITLE_EN] (English Title)
 [PROMPT] (English Prompt)
 [LYRICS] (Full Lyrics)
 """
-                    response = model.generate_content(query)
-                    res_text = response.text.replace("**", "").replace("##", "")
-                    
-                    # 데이터 파싱
-                    t_kr = "제목오류"; t_en = "TitleError"; prmpt = ""; lyr = "생성실패"
 
-                    if "[TITLE_KR]" in res_text and "[TITLE_EN]" in res_text:
-                        t_kr = res_text.split("[TITLE_KR]")[1].split("[TITLE_EN]")[0].strip()
-                    if "[TITLE_EN]" in res_text and "[PROMPT]" in res_text:
-                        t_en = res_text.split("[TITLE_EN]")[1].split("[PROMPT]")[0].strip()
-                    if "[PROMPT]" in res_text and "[LYRICS]" in res_text:
-                        prmpt = res_text.split("[PROMPT]")[1].split("[LYRICS]")[0].strip().replace("\n", " ")
-                    if "[LYRICS]" in res_text:
-                        lyr = res_text.split("[LYRICS]")[1].strip()
-
-                    # 특수문자 제거 및 세션 저장
-                    t_kr = re.sub(r'[\"\'\[\]\(\)]', '', t_kr).strip()
-                    t_en = re.sub(r'[\"\'\[\]\(\)]', '', t_en).strip()
-                    
-                    st.session_state.final_title = f"{t_kr}_{t_en}"
-                    st.session_state.final_prompt = prmpt[:995]
-                    st.session_state.final_lyrics = lyr
-                    
-                    # 이미지 탭 연동용
-                    st.session_state.gen_title_kr = t_kr
-                    st.session_state.gen_title_en = t_en
-                    
-                    st.success("🎉 작사가 완료되었습니다! 아래 복사존에서 우측 상단 📋 아이콘을 눌러 복사하세요.")
+                for model_name in candidate_models:
+                    try:
+                        status_placeholder.info(f"⏳ {model_name} 모델로 생성 시도 중...")
+                        model = genai.GenerativeModel(model_name)
+                        response = model.generate_content(query)
+                        res_text = response.text
+                        if "[TITLE_KR]" in res_text:
+                            success = True
+                            break
+                    except:
+                        continue
                 
-                except Exception as e:
-                    st.error(f"⚠️ 오류 발생: {e}")
+                if not success:
+                    st.error("⚠️ 입력하신 API 키로 사용할 수 있는 모델이 없습니다. 키를 확인하시거나 잠시 후 다시 시도해주세요.")
+                    st.stop()
+
+                # 데이터 파싱
+                res_text = res_text.replace("**", "").replace("##", "")
+                t_kr = "제목오류"; t_en = "TitleError"; prmpt = ""; lyr = "생성실패"
+
+                if "[TITLE_KR]" in res_text and "[TITLE_EN]" in res_text:
+                    t_kr = res_text.split("[TITLE_KR]")[1].split("[TITLE_EN]")[0].strip()
+                if "[TITLE_EN]" in res_text and "[PROMPT]" in res_text:
+                    t_en = res_text.split("[TITLE_EN]")[1].split("[PROMPT]")[0].strip()
+                if "[PROMPT]" in res_text and "[LYRICS]" in res_text:
+                    prmpt = res_text.split("[PROMPT]")[1].split("[LYRICS]")[0].strip().replace("\n", " ")
+                if "[LYRICS]" in res_text:
+                    lyr = res_text.split("[LYRICS]")[1].strip()
+
+                # 특수문자 제거 및 세션 저장
+                t_kr = re.sub(r'[\"\'\[\]\(\)]', '', t_kr).strip()
+                t_en = re.sub(r'[\"\'\[\]\(\)]', '', t_en).strip()
+                
+                st.session_state.final_title = f"{t_kr}_{t_en}"
+                st.session_state.final_prompt = prmpt[:995]
+                st.session_state.final_lyrics = lyr
+                
+                # 이미지 탭 연동용
+                st.session_state.gen_title_kr = t_kr
+                st.session_state.gen_title_en = t_en
+                
+                status_placeholder.success("🎉 작사 및 프롬프트 설계 완료! 아래 복사존을 이용하세요.")
+            
+            except Exception as e:
+                st.error(f"⚠️ 시스템 오류: {e}")
 
     st.divider()
     st.subheader("📋 수노(Suno) 전용 원클릭 복사존")
     st.info("💡 각 박스 우측 상단의 **📋 (복사) 아이콘**을 누르세요.")
 
     st.write("### 1. 🎵 Title (곡 제목 - 한글_영문)")
-    st.code(st.session_state.final_title if st.session_state.final_title else "주제를 적고 버튼을 누르세요.", language="text")
+    st.code(st.session_state.final_title if st.session_state.final_title else "생성 버튼을 누르면 제목이 표시됩니다.", language="text")
     
     st.write("### 2. 🎸 Style of Music (1000자 디테일 프롬프트)")
     st.code(st.session_state.final_prompt if st.session_state.final_prompt else "여기에 디테일 프롬프트가 표시됩니다.", language="text")
