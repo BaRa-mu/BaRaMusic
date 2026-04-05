@@ -41,7 +41,6 @@ def render_tab1():
             st.error("🎯 곡의 주제를 가장 먼저 입력해주세요!")
         else:
             with st.spinner("AI가 곡을 기획하고 있습니다. 1000자 분량의 영문 프롬프트와 가사를 작성 중입니다..."):
-                # 🔥 AI가 앵무새처럼 질문을 따라하지 못하도록, 지시문은 영어로 강력하게 통제합니다.
                 query = f"""Write a song based on the following details.
 Topic: {suno_subject}
 Genre: {s_selected_genre}
@@ -64,17 +63,38 @@ You MUST follow this EXACT structure. Do not include any other words, explanatio
                 
                 res_text = utils.generate_ai_text(query)
                 
-                # 🔥 확실한 마커(===마커===)를 통해 텍스트를 완벽하게 분리 추출
                 try:
                     match_title = re.search(r"===TITLE===\s*(.+?)(?=\n*===PROMPT===)", res_text, re.DOTALL | re.IGNORECASE)
                     match_prompt = re.search(r"===PROMPT===\s*(.+?)(?=\n*===LYRICS===)", res_text, re.DOTALL | re.IGNORECASE)
                     match_lyrics = re.search(r"===LYRICS===\s*(.*)", res_text, re.DOTALL | re.IGNORECASE)
                     
-                    st.session_state.final_title = match_title.group(1).strip() if match_title else "제목 생성 에러_Title Error"
+                    # 🔥 AI가 마음대로 쓴 제목을 강제로 한글_영어 포맷으로 재조립하는 무적의 정규식
+                    if match_title:
+                        raw_title = match_title.group(1).strip()
+                        # '한글제목: 별, 영문제목: Star' 같이 이상하게 쓴 경우를 모두 걸러냄
+                        raw_title = re.sub(r'(한글제목|영문제목|Korean Title|English Title)[:\-]?\s*', '', raw_title)
+                        
+                        # 이미 언더스코어(_)가 있다면 그대로 사용, 없다면 한글과 영어 사이를 쪼개서 붙임
+                        if "_" in raw_title:
+                            final_title_str = raw_title
+                        else:
+                            # 영어가 시작되는 부분을 찾아서 그 앞에 _ 를 붙임
+                            kr_part = re.sub(r'[a-zA-Z].*', '', raw_title).strip()
+                            en_part = re.search(r'[a-zA-Z].*', raw_title)
+                            en_part = en_part.group(0).strip() if en_part else ""
+                            
+                            if kr_part and en_part:
+                                final_title_str = f"{kr_part}_{en_part}"
+                            else:
+                                final_title_str = raw_title # 분리가 안되면 원본 사용
+                                
+                        st.session_state.final_title = final_title_str
+                    else:
+                        st.session_state.final_title = "제목 파싱 실패_Parsing Error"
                     
                     if match_prompt:
                         raw_prompt = match_prompt.group(1).strip().replace("\n", " ")
-                        st.session_state.final_prompt = raw_prompt[:995] # 수노 1000자 제한 맞춤
+                        st.session_state.final_prompt = raw_prompt[:995] 
                     else:
                         st.session_state.final_prompt = fallback_prompt
                         
@@ -90,7 +110,7 @@ You MUST follow this EXACT structure. Do not include any other words, explanatio
 
     st.divider()
     st.subheader("📋 수노(Suno) 전용 원클릭 복사존")
-    st.info("💡 우측 상단 모서리에 마우스를 올리면 나타나는 **📋 (복사) 아이콘**을 누르세요. 불필요한 수동 편집칸은 모두 삭제되었습니다.")
+    st.info("💡 각 박스 우측 상단에 마우스를 올리면 나타나는 **📋 (복사) 아이콘**을 누르세요. 불필요한 수동 편집칸은 모두 삭제되었습니다.")
 
     st.write("### 1. 🎵 Title (곡 제목)")
     st.code(st.session_state.final_title if st.session_state.final_title else "생성 버튼을 누르면 한글_영문 제목이 표시됩니다.", language="text")
