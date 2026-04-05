@@ -9,7 +9,7 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 def render_tab1():
     st.header("📝 수노(Suno AI) 완벽 프롬프트 & 가사 생성기")
-    st.write("초고성능 구글 AI(Gemini)가 탑재되었습니다. 딴소리 없이 완벽한 퀄리티의 세트를 만들어냅니다.")
+    st.write("초고성능 최신 구글 AI(Gemini 1.5)가 탑재되었습니다. 딴소리 없이 완벽한 퀄리티의 세트를 만들어냅니다.")
     
     suno_subject = st.text_input("🎯 곡의 주제/메시지 (필수 입력, 예: 지친 하루의 위로, 십자가의 사랑)")
     
@@ -74,8 +74,8 @@ def render_tab1():
 [Outro]
 """
                 try:
-                    # 🔥 구글 Gemini 모델 직접 호출!
-                    model = genai.GenerativeModel('gemini-pro')
+                    # 🔥 에러 원인 해결: 구글 최신 AI 모델명(gemini-1.5-flash)으로 교체 완비!
+                    model = genai.GenerativeModel('gemini-1.5-flash')
                     response = model.generate_content(query)
                     res_text = response.text
                     
