@@ -26,7 +26,7 @@ if 'base_name' not in st.session_state: st.session_state.base_name = ""
 # AI 가사 생성용 세션
 if 'gen_title_kr' not in st.session_state: st.session_state.gen_title_kr = ""
 if 'gen_title_en' not in st.session_state: st.session_state.gen_title_en = ""
-if 'gen_lyrics' not in st.session_state: st.session_state.gen_lyrics = ""
+if 's_lyrics' not in st.session_state: st.session_state.s_lyrics = ""
 
 # ==========================================
 # 🔠 폰트 다운로드 (디자인용 3종 세트)
@@ -118,7 +118,6 @@ def process_user_image(uploaded_file, width, height, output_path):
     img.save(output_path)
     img.close()
 
-# 🌟 AI 텍스트 생성기 (무료/API 키 필요없음)
 def generate_ai_text(prompt):
     try:
         encoded_prompt = urllib.parse.quote(prompt)
@@ -182,7 +181,7 @@ def design_and_save_image(width, height, prompt, seed, title_kr, title_en, font_
     return output_path
 
 # ==========================================
-# 🎬 완벽 비디오 렌더링 엔진 (건드리지 않음)
+# 🎬 완벽 비디오 렌더링 엔진
 # ==========================================
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0):
     base_img = Image.open(image_path).convert("RGB")
@@ -262,9 +261,6 @@ def generate_static_video(image_path, audio_clip, output_path, logger):
     clip.write_videofile(output_path, fps=2, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
     clip.close()
 
-# ==========================================
-# 🚀 유튜브 업로드 함수
-# ==========================================
 def upload_to_youtube(video_path, title, description, tags, privacy_status, publish_at=None):
     try:
         from googleapiclient.discovery import build
@@ -294,14 +290,14 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
 # ==========================================
 # 🖥️ 3-Step 앱 UI 구성
 # ==========================================
-tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 가사 생성", "🎨 2. 이미지 팩토리 (디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
+tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 프롬프트 팩토리", "🎨 2. 이미지 팩토리 (디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
 
 # ------------------------------------------
-# [탭 1] 수노 가사 프롬프트 생성기 (완벽 복구 & AI 자동생성 적용)
+# [탭 1] 수노 가사 프롬프트 생성기 (원클릭 복사 완벽 적용)
 # ------------------------------------------
 with tab1:
     st.header("📝 수노(Suno AI) 완벽 프롬프트 & 가사 생성기")
-    st.write("주제와 장르 등을 선택하고 버튼을 누르면 AI가 제목과 가사를 자동으로 작사해줍니다.")
+    st.write("주제와 장르 등을 선택하고 생성 버튼을 누르면 AI가 맞춤형 텍스트를 만들어줍니다.")
     
     suno_subject = st.text_input("🎯 곡의 주제/메시지 (예: 지친 하루의 위로, 십자가의 사랑)")
     
@@ -323,7 +319,6 @@ with tab1:
     if s_vocal != "선택안함": prompt_parts.append(s_vocal)
     final_suno_prompt = ", ".join(prompt_parts)
 
-    # 🔥 AI 가사 자동 생성 로직
     if st.button("✨ AI 제목 및 가사 자동 생성", type="primary"):
         if not suno_subject: st.error("🎯 곡의 주제를 입력해주세요!")
         else:
@@ -331,27 +326,50 @@ with tab1:
                 query = f"주제: '{suno_subject}', 장르: {s_selected_genre}, 분위기: {s_mood}, 템포: {s_tempo}, 보컬: {s_vocal}. 이 곡의 한글제목, 영문제목, 그리고 수노(Suno)에 쓸 가사(반드시 [Intro], [Verse], [Chorus], [Outro] 등 메타태그 포함)를 써줘. 응답형식:\n한글제목:\n영문제목:\n가사:\n"
                 res_text = generate_ai_text(query)
                 
-                # 정규식으로 파싱
                 match_kr = re.search(r"한글제목:\s*(.+)", res_text)
                 match_en = re.search(r"영문제목:\s*(.+)", res_text)
                 match_lyrics = re.search(r"가사:\s*(.*)", res_text, re.DOTALL)
                 
-                st.session_state.gen_title_kr = match_kr.group(1).strip() if match_kr else "제목을 생성하지 못했습니다."
+                st.session_state.gen_title_kr = match_kr.group(1).strip() if match_kr else "제목 생성 실패"
                 st.session_state.gen_title_en = match_en.group(1).strip() if match_en else ""
-                st.session_state.gen_lyrics = match_lyrics.group(1).strip() if match_lyrics else res_text
+                st.session_state.s_lyrics = match_lyrics.group(1).strip() if match_lyrics else res_text
                 
-            st.success("🎉 작사가 완료되었습니다! 아래 결과를 수노에 복사하세요.")
+            st.success("🎉 작사가 완료되었습니다! 아래 에디터에서 수정하거나 복사존에서 복사하세요.")
 
-    st.info("💡 **수노(Suno) 'Style of Music' 복사용 프롬프트:**")
-    st.code(final_suno_prompt if final_suno_prompt else "옵션을 선택해주세요.", language="markdown")
-    
+    st.divider()
+    st.subheader("🛠️ 수동 에디터 (수정 시 실시간으로 하단 복사존에 반영됨)")
     col_r1, col_r2 = st.columns(2)
-    with col_r1: st.text_input("한글 제목", value=st.session_state.gen_title_kr)
-    with col_r2: st.text_input("영문 제목", value=st.session_state.gen_title_en)
-    st.text_area("수노(Suno) 입력용 가사", value=st.session_state.gen_lyrics, height=300)
+    with col_r1: st.session_state.gen_title_kr = st.text_input("📌 한글 제목", value=st.session_state.gen_title_kr)
+    with col_r2: st.session_state.gen_title_en = st.text_input("📌 영문 제목", value=st.session_state.gen_title_en)
+    
+    st.write("📌 가사 구조 태그 삽입 (클릭 시 가사 맨 끝에 추가됨)")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    if c1.button("[Intro] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Intro]\n"
+    if c2.button("[Verse] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Verse]\n"
+    if c3.button("[Chorus] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Chorus]\n"
+    if c4.button("[Bridge] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Bridge]\n"
+    if c5.button("[Outro] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Outro]\n"
+    
+    st.session_state.s_lyrics = st.text_area("가사 작성칸", value=st.session_state.get('s_lyrics', ''), height=200)
+
+    st.divider()
+    st.subheader("📋 수노(Suno) 전용 원클릭 복사존")
+    st.info("우측 상단의 네모난 📋 복사 아이콘을 누르면 쉽게 복사됩니다.")
+
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        st.write("**1. 🎵 곡 제목 (Title)**")
+        combined_title = f"{st.session_state.gen_title_kr}_{st.session_state.gen_title_en}" if st.session_state.gen_title_en else st.session_state.gen_title_kr
+        st.code(combined_title if combined_title.strip('_') else "제목을 생성하거나 입력하세요.", language="text")
+    with col_c2:
+        st.write("**2. 🎸 음악 스타일 (Style of Music)**")
+        st.code(final_suno_prompt if final_suno_prompt else "옵션을 선택하세요.", language="text")
+
+    st.write("**3. 📝 가사 (Lyrics)**")
+    st.code(st.session_state.get('s_lyrics', '가사를 생성하거나 입력하세요.') if st.session_state.get('s_lyrics', '').strip() else "가사를 생성하거나 입력하세요.", language="text")
 
 # ------------------------------------------
-# [탭 2] 이미지 팩토리 (음원 업로드 시 제목 자동 파싱 포함)
+# [탭 2] 이미지 팩토리
 # ------------------------------------------
 pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz", "보사노바": "bossa nova", "로파이": "lofi hip hop", "시네마틱 / OST": "cinematic soundtrack"}
 ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship"}
@@ -365,7 +383,7 @@ weathers = {"선택안함": "", "맑고 쾌청한": "clear weather", "구름이 
 
 with tab2:
     st.header("🎨 이미지 팩토리 (제목 파싱 및 디자인)")
-    st.write("수노에서 다운받은 `한글제목_영문제목.mp3` 파일을 올리면 제목이 자동으로 분리되어 텍스트 박스에 채워집니다.")
+    st.write("수노에서 다운받은 `한글제목_영문제목.mp3` 파일을 올리면 제목이 자동으로 분리되어 입력됩니다.")
     
     audio_for_parsing = st.file_uploader("🎧 수노 다운로드 음원 업로드", type=['wav', 'mp3'])
     
@@ -484,7 +502,7 @@ with tab2:
                 col_idx += 1
 
 # ------------------------------------------
-# [탭 3] 비디오 팩토리 (기존 100% 무적 렌더링 유지)
+# [탭 3] 비디오 팩토리 
 # ------------------------------------------
 with tab3:
     st.header("🎬 비디오 렌더링 & 유튜브 업로드")
@@ -510,7 +528,7 @@ with tab3:
             v_img_shorts.append(st.file_uploader(f"쇼츠 {i+1} 이미지", type=['png','jpg'], key=f"v_s_{i}"))
 
         st.divider()
-        v_lyrics = st.text_area("📝 영상에 올릴 가사 ([] 자동삭제)", value=st.session_state.gen_lyrics, height=150)
+        v_lyrics = st.text_area("📝 스크롤 가사 ([] 자동삭제)", value=st.session_state.get('s_lyrics', ''), height=150)
         v_sync = st.text_input("⏱️ 가사 시작 시간 (예: 00:15)", placeholder="비워두면 AI가 분석")
 
     with col_v2:
