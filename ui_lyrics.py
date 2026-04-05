@@ -30,69 +30,73 @@ def render_tab1():
     if s_vocal != "선택안함": fallback_parts.append(utils.extract_eng(s_vocal))
     fallback_prompt = ", ".join(fallback_parts)
 
+    # 🌟 세션 상태 초기화 (처음 로드 시 빈칸 방지)
+    if 'final_title' not in st.session_state: st.session_state.final_title = ""
+    if 'final_prompt' not in st.session_state: st.session_state.final_prompt = ""
+    if 'final_lyrics' not in st.session_state: st.session_state.final_lyrics = ""
+
     # 생성 버튼
     if st.button("✨ 수노 전용 제목 및 가사 1초 완성", type="primary", use_container_width=True):
         if not suno_subject: 
             st.error("🎯 곡의 주제를 가장 먼저 입력해주세요!")
         else:
-            with st.spinner("AI가 프로듀서가 되어 1000자 분량의 디테일한 영문 프롬프트와 가사를 작성 중입니다... (약 10초 소요)"):
-                # 🔥 AI에게 불필요한 말(가사 포인트 등)을 절대 금지하고, 1000자 프롬프트를 꽉 채우도록 강력하게 강제함
-                query = f"""
-                당신은 세계 최고의 음악 프로듀서이자 작사가입니다.
-                다음 요소를 바탕으로 Suno AI 음악 생성용 데이터를 작성하세요.
-                주제: '{suno_subject}', 장르: {s_selected_genre}, 분위기: {s_mood}, 템포: {s_tempo}, 악기: {s_inst}, 보컬: {s_vocal}
-                
-                [엄격한 규칙]
-                1. 절대 부연 설명, 인사말, "가사 포인트", "작성 완료했습니다" 같은 해설을 적지 마세요.
-                2. 가사 안에 괄호를 치고 (기타가 흐르며) 같은 지시문도 절대 적지 마세요. 오직 부를 가사와 [Intro], [Verse], [Chorus] 등의 대괄호 메타태그만 적으세요.
-                3. [프롬프트] 섹션은 반드시 영어로만 작성하며, 곡의 악기 구성, 질감, 리듬, 코러스의 웅장함, 보컬 톤 등을 묘사하는 단어들을 쉼표(,)로 나열하여 800자에서 1000자 사이로 매우 길고 화려하게 꽉 채워주세요.
-                
-                응답은 반드시 아래 3개의 섹션 태그를 그대로 포함하여 작성하세요.
-                
-                [제목]
-                (한글제목_EnglishTitle 형태로 딱 1줄만 작성)
-                
-                [프롬프트]
-                (영문 800~1000자 분량의 디테일한 스타일 프롬프트)
-                
-                [가사]
-                [Intro]
-                (가사시작...)
-                """
+            with st.spinner("AI가 곡을 기획하고 있습니다. 1000자 분량의 영문 프롬프트와 가사를 작성 중입니다..."):
+                # 🔥 AI가 앵무새처럼 질문을 따라하지 못하도록, 지시문은 영어로 강력하게 통제합니다.
+                query = f"""Write a song based on the following details.
+Topic: {suno_subject}
+Genre: {s_selected_genre}
+Mood: {s_mood}
+Tempo: {s_tempo}
+Instruments: {s_inst}
+Vocal: {s_vocal}
+
+You MUST follow this EXACT structure. Do not include any other words, explanations, or your own comments.
+
+===TITLE===
+(Write one Korean title and one English title separated by an underscore. Example: 밤하늘의 별_Stars in the Night Sky)
+
+===PROMPT===
+(Write a highly detailed, 800 to 1000 character long English music prompt. Describe the musical texture, rhythm, specific instruments, vocal style, and atmosphere in rich detail using comma-separated keywords and phrases. Make it as descriptive as possible.)
+
+===LYRICS===
+(Write the song lyrics in Korean based on the topic. You MUST include structural meta-tags like [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Bridge], [Guitar Solo], [Outro] appropriately throughout the song.)
+"""
                 
                 res_text = utils.generate_ai_text(query)
                 
-                # 🔥 3개의 강제 마커를 기준으로 완벽하게 텍스트를 파싱
+                # 🔥 확실한 마커(===마커===)를 통해 텍스트를 완벽하게 분리 추출
                 try:
-                    match_title = re.search(r"\[제목\]\s*(.+?)(?=\n*\[프롬프트\])", res_text, re.DOTALL | re.IGNORECASE)
-                    match_prompt = re.search(r"\[프롬프트\]\s*(.+?)(?=\n*\[가사\])", res_text, re.DOTALL | re.IGNORECASE)
-                    match_lyrics = re.search(r"\[가사\]\s*(.*)", res_text, re.DOTALL | re.IGNORECASE)
+                    match_title = re.search(r"===TITLE===\s*(.+?)(?=\n*===PROMPT===)", res_text, re.DOTALL | re.IGNORECASE)
+                    match_prompt = re.search(r"===PROMPT===\s*(.+?)(?=\n*===LYRICS===)", res_text, re.DOTALL | re.IGNORECASE)
+                    match_lyrics = re.search(r"===LYRICS===\s*(.*)", res_text, re.DOTALL | re.IGNORECASE)
                     
-                    st.session_state.gen_title_kr = match_title.group(1).strip() if match_title else "제목_Title"
+                    st.session_state.final_title = match_title.group(1).strip() if match_title else "제목 생성 에러_Title Error"
                     
-                    if match_prompt and len(match_prompt.group(1).strip()) > 20:
+                    if match_prompt:
                         raw_prompt = match_prompt.group(1).strip().replace("\n", " ")
-                        # 수노 1000자 제한 방지
-                        st.session_state.gen_prompt = raw_prompt[:990] 
+                        st.session_state.final_prompt = raw_prompt[:995] # 수노 1000자 제한 맞춤
                     else:
-                        st.session_state.gen_prompt = fallback_prompt
+                        st.session_state.final_prompt = fallback_prompt
                         
-                    st.session_state.s_lyrics = match_lyrics.group(1).strip() if match_lyrics else "가사를 생성하지 못했습니다. 다시 시도해주세요."
-                    
+                    if match_lyrics:
+                        st.session_state.final_lyrics = match_lyrics.group(1).strip()
+                    else:
+                        st.session_state.final_lyrics = "가사 생성에 실패했습니다. 다시 생성해주세요."
+                        
                     st.success("🎉 생성 완료! 아래 📋 아이콘을 눌러 수노(Suno AI)에 바로 붙여넣기 하세요.")
                 
                 except Exception as e:
-                    st.error("⚠️ AI 서버 응답이 지연되었습니다. [생성] 버튼을 한 번 더 눌러주세요.")
+                    st.error("⚠️ AI 응답이 불안정합니다. 버튼을 한 번 더 눌러주세요.")
 
     st.divider()
-    st.subheader("📋 수노(Suno) 원클릭 복사존")
-    st.info("💡 각 박스 우측 상단에 마우스를 올리면 나타나는 **📋 (복사) 아이콘**을 누르면 내용이 복사됩니다. 수동 입력칸은 제거되었습니다.")
+    st.subheader("📋 수노(Suno) 전용 원클릭 복사존")
+    st.info("💡 우측 상단 모서리에 마우스를 올리면 나타나는 **📋 (복사) 아이콘**을 누르세요. 불필요한 수동 편집칸은 모두 삭제되었습니다.")
 
     st.write("### 1. 🎵 Title (곡 제목)")
-    st.code(st.session_state.get('gen_title_kr', '주제를 적고 생성 버튼을 누르세요.'), language="text")
+    st.code(st.session_state.final_title if st.session_state.final_title else "생성 버튼을 누르면 한글_영문 제목이 표시됩니다.", language="text")
     
-    st.write("### 2. 🎸 Style of Music (음악 프롬프트)")
-    st.code(st.session_state.get('gen_prompt', fallback_prompt) if st.session_state.get('gen_prompt', fallback_prompt) else "옵션을 선택하세요.", language="text")
+    st.write("### 2. 🎸 Style of Music (디테일 음악 프롬프트 - 최대 1000자)")
+    st.code(st.session_state.final_prompt if st.session_state.final_prompt else fallback_prompt, language="text")
 
-    st.write("### 3. 📝 Lyrics (가사)")
-    st.code(st.session_state.get('s_lyrics', '생성된 가사가 여기에 표시됩니다.') if st.session_state.get('s_lyrics', '').strip() else "가사를 생성하거나 입력하세요.", language="text")
+    st.write("### 3. 📝 Lyrics (메타태그 포함 가사)")
+    st.code(st.session_state.final_lyrics if st.session_state.final_lyrics else "생성된 가사가 여기에 표시됩니다.", language="text")
