@@ -20,7 +20,6 @@ def render_tab1():
     with col_s5: s_inst = st.selectbox("🎹 주요 악기", utils.suno_inst_list)
     with col_s6: s_vocal = st.selectbox("🎤 보컬 구성", [v for v in utils.suno_vocals_list if not v.startswith("---")])
 
-    # 기본 프롬프트 조합 (만약의 경우를 대비한 폴백)
     s_selected_genre = s_ccm if s_ccm != "선택안함" else (s_pop if s_pop != "선택안함" else "")
     fallback_parts = []
     if s_selected_genre: fallback_parts.append(utils.extract_eng(s_selected_genre))
@@ -30,26 +29,28 @@ def render_tab1():
     if s_vocal != "선택안함": fallback_parts.append(utils.extract_eng(s_vocal))
     fallback_prompt = ", ".join(fallback_parts)
 
-    # 세션 상태 초기화
     if 'final_title' not in st.session_state: st.session_state.final_title = ""
     if 'final_prompt' not in st.session_state: st.session_state.final_prompt = ""
     if 'final_lyrics' not in st.session_state: st.session_state.final_lyrics = ""
 
-    # ✨ 생성 버튼
     if st.button("✨ 수노 전용 제목 및 가사 1초 완성", type="primary", use_container_width=True):
         if not suno_subject: 
             st.error("🎯 곡의 주제를 가장 먼저 입력해주세요!")
         else:
-            with st.spinner("AI가 1000자 분량의 디테일 영문 프롬프트와 메타태그 가사를 작성 중입니다... (약 10초 소요)"):
+            with st.spinner("AI가 프로 작사가 모드로 진입하여 깊이 있는 가사와 프롬프트를 작성 중입니다... (약 10초 소요)"):
                 
-                # 🔥 AI가 템플릿을 복사하지 못하도록 영문으로 아주 강력하고 명확하게 지시
-                query = f"""Create a song based on the details below.
+                # 🔥 작사 퀄리티 극대화를 위한 초정밀 프롬프트
+                query = f"""You are a top-tier, award-winning professional lyricist and music producer.
+Create a highly artistic, human-like song based on the following details.
+
 Topic: {suno_subject}
 Style: {s_selected_genre}, {s_mood}, {s_tempo}, {s_inst}, {s_vocal}
 
-CRITICAL RULES:
-1. Do NOT write conversational text like "Here is your song" or "가사 포인트".
-2. You MUST strictly use the 4 exact tags below to start each section. Do not use asterisks (**).
+CRITICAL INSTRUCTIONS FOR LYRICS & TITLE:
+1. AVOID AI cliches: Do NOT use obvious, cheesy, or robotic phrases like "희망의 빛", "새로운 시작", "함께 걸어가요", "어둠을 뚫고", "빛이 되리라".
+2. Use poetic, metaphorical, and deeply emotional Korean expressions. Focus on sensory details, authentic human feelings, everyday moments, or profound spiritual reflections.
+3. The Title must be sophisticated, modern, and poetic. Not a simple summary of the topic.
+4. You MUST strictly use the 4 exact tags below to start each section. Do not use asterisks (**). Do NOT write conversational text like "Here is your song".
 
 TitleKR:
 TitleEN:
@@ -61,8 +62,6 @@ For "Lyrics:", write the full Korean lyrics. You MUST include tags like [Intro],
 """
                 
                 res_text = utils.generate_ai_text(query)
-                
-                # AI가 마크다운(**)을 썼을 경우를 대비해 싹 다 지워버림
                 clean_text = res_text.replace("**", "").replace("##", "")
                 
                 t_kr = "제목 생성 오류"
@@ -71,7 +70,6 @@ For "Lyrics:", write the full Korean lyrics. You MUST include tags like [Intro],
                 lyr = "가사를 생성하지 못했습니다."
 
                 try:
-                    # 🔥 무조건 성공하는 스플릿(Split) 파싱 기법 도입
                     if "TitleKR:" in clean_text and "TitleEN:" in clean_text:
                         t_kr = clean_text.split("TitleKR:")[1].split("TitleEN:")[0].strip()
                     
@@ -83,28 +81,22 @@ For "Lyrics:", write the full Korean lyrics. You MUST include tags like [Intro],
                         
                     if "Lyrics:" in clean_text:
                         lyr_raw = clean_text.split("Lyrics:")[1].strip()
-                        # AI가 뒤에 쓸데없이 덧붙인 '가사 포인트', '참고:' 등을 무자비하게 잘라버림
                         lyr = re.split(r'\n\s*(가사 포인트|참고:|Note:|설명:)', lyr_raw)[0].strip()
 
-                    # 찌꺼기 괄호 기호 제거
                     t_kr = re.sub(r'[\[\]\(\)]', '', t_kr).strip()
                     t_en = re.sub(r'[\[\]\(\)]', '', t_en).strip()
                     
                     st.session_state.final_title = f"{t_kr}_{t_en}"
-                    
-                    # 프롬프트 1000자 초과 방지
                     st.session_state.final_prompt = prmpt[:995] if len(prmpt) > 10 else fallback_prompt
                     st.session_state.final_lyrics = lyr
                     
-                    # 탭 2(이미지 팩토리) 연동을 위한 데이터 넘기기
                     st.session_state.gen_title_kr = t_kr
                     st.session_state.gen_title_en = t_en
                     
-                    st.success("🎉 완벽하게 생성되었습니다! 아래의 📋 아이콘을 눌러 수노(Suno AI)에 바로 붙여넣기 하세요.")
+                    st.success("🎉 세련되고 감성적인 작사가 완료되었습니다! 아래의 📋 아이콘을 눌러 수노(Suno AI)에 바로 붙여넣기 하세요.")
                 
                 except Exception as e:
                     st.error("⚠️ AI가 형식 규칙을 어겼습니다. [생성] 버튼을 다시 한 번 눌러주세요.")
-                    # 혹시나 실패해도 아예 안 나오는 것을 막기 위해 원문 출력
                     st.session_state.final_lyrics = clean_text
 
     st.divider()
