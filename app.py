@@ -11,31 +11,24 @@ import moviepy.audio.fx.all as afx
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 from proglog import ProgressBarLogger
 
-st.set_page_config(page_title="AI 뮤직비디오 팩토리 (3-Step)", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="AI 뮤직비디오 자동화 팩토리", page_icon="🎬", layout="wide")
 
 # ==========================================
-# 💾 세션 상태 및 메모리 유지
+# 💾 세션 상태 유지
 # ==========================================
-if 'audio_path' not in st.session_state: st.session_state.audio_path = ""
-if 'title_kr' not in st.session_state: st.session_state.title_kr = ""
-if 'title_en' not in st.session_state: st.session_state.title_en = ""
-if 'img_main' not in st.session_state: st.session_state.img_main = None
-if 'img_tiktok' not in st.session_state: st.session_state.img_tiktok = None
-if 'img_shorts' not in st.session_state: st.session_state.img_shorts = []
-if 'clean_lyrics' not in st.session_state: st.session_state.clean_lyrics = ""
-if 'base_name' not in st.session_state: st.session_state.base_name = ""
 if 'is_completed' not in st.session_state: st.session_state.is_completed = False
 if 'main_video_path' not in st.session_state: st.session_state.main_video_path = ""
 if 'tiktok_video_path' not in st.session_state: st.session_state.tiktok_video_path = ""
 if 'shorts_paths' not in st.session_state: st.session_state.shorts_paths = []
+if 'base_name' not in st.session_state: st.session_state.base_name = ""
 
 # ==========================================
-# 🔠 폰트 다운로드 세팅 (3가지 스타일)
+# 🔠 폰트 다운로드 (디자인용 3종 세트)
 # ==========================================
 font_links = {
-    "나눔고딕 (깔끔/기본)": ("NanumGothicBold.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"),
-    "검은고딕 (강렬/임팩트)": ("BlackHanSans.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/blackhansans/BlackHanSans-Regular.ttf"),
-    "노토산스 (세련/모던)": ("NotoSansKR.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/NotoSansKR-Bold.ttf")
+    "나눔고딕 (기본/깔끔)": ("NanumGothicBold.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"),
+    "검은고딕 (강조/임팩트)": ("BlackHanSans.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/blackhansans/BlackHanSans-Regular.ttf"),
+    "노토산스 (모던/세련)": ("NotoSansKR.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/NotoSansKR-Bold.ttf")
 }
 
 for name, (file_name, url) in font_links.items():
@@ -45,22 +38,7 @@ for name, (file_name, url) in font_links.items():
         except: pass
 
 # ==========================================
-# 🎯 11개의 초정밀 프롬프트 사전 (완벽 복구)
-# ==========================================
-pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz", "보사노바": "bossa nova", "로파이": "lofi hip hop", "시네마틱 / OST": "cinematic soundtrack"}
-ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship"}
-moods = {"선택안함": "", "경건하고 홀리한": "holy, reverent", "은혜롭고 따뜻한": "graceful, warm", "몽환적이고 신비로운": "ethereal, dreamy", "차분하고 서정적인": "lyrical, calm", "우울하고 쓸쓸한": "melancholic", "밝고 희망찬": "joyful, uplifting", "에너지 넘치는": "energetic"}
-styles = {"선택안함": "", "실사 사진 (초고화질)": "photorealistic, 8k resolution", "수채화": "soft watercolor", "유화": "classic oil painting", "지브리 애니메이션 풍": "studio ghibli style", "신카이 마코토 풍": "makoto shinkai style", "픽사/디즈니 3D 풍": "3D render, pixar style", "빈티지 일러스트": "vintage illustration"}
-lightings = {"선택안함": "", "성스러운 빛": "god rays, volumetric lighting", "따스한 자연광": "natural sunlight", "눈부신 역광": "backlit, lens flare", "부드러운 스튜디오 조명": "soft studio lighting", "어두운 밤": "nighttime, soft moonlight", "화려한 네온사인": "vibrant neon lighting", "골든 아워 (노을빛)": "golden hour lighting"}
-colors = {"선택안함": "", "황금빛 톤": "golden color palette", "따뜻한 웜톤": "warm color palette", "차가운 쿨톤": "cool color palette", "흑백 / 모노톤": "black and white", "부드러운 파스텔": "soft pastel colors", "빈티지": "vintage colors"}
-cameras = {"선택안함": "", "클로즈업": "extreme close-up shot", "바스트 샷": "medium shot", "전신 샷": "full body shot", "풍경 위주": "wide landscape shot", "로우 앵글": "low angle shot", "하이 앵글": "high angle shot", "드론 뷰": "bird's eye view"}
-times = {"선택안함": "", "이른 새벽": "early dawn", "밝은 아침": "bright morning", "화창한 정오": "midday", "늦은 오후": "late afternoon", "해질녘 (골든아워)": "sunset", "푸른 저녁 (블루아워)": "blue hour", "깊은 밤 (자정)": "midnight"}
-weathers = {"선택안함": "", "맑고 쾌청한": "clear weather", "구름이 예쁜 날": "fluffy white clouds", "비 내리는": "raining", "눈 내리는": "snowing", "안개 낀": "thick fog", "흩날리는 벚꽃잎": "falling cherry blossom petals", "무지개가 뜬 날": "beautiful rainbow"}
-eras = {"선택안함": "", "현대 / 도심": "modern day", "근미래 / 사이버펑크": "futuristic, cyberpunk city", "90년대 / Y2K": "1990s retro aesthetic", "80년대": "1980s aesthetic", "중세 판타지": "medieval fantasy world", "빅토리아 시대": "victorian era"}
-effects = {"선택안함": "", "필름 노이즈": "heavy film grain", "빛 번짐": "lens flare", "아웃포커싱": "shallow depth of field", "세피아 필터": "sepia filter", "빛바랜 폴라로이드": "polaroid effect"}
-
-# ==========================================
-# 🌟 유틸리티 함수 모음
+# 🌟 진행률 로거 및 유틸리티
 # ==========================================
 class StreamlitProgressLogger(ProgressBarLogger):
     def __init__(self, st_bar, st_text, prefix):
@@ -100,6 +78,22 @@ def find_highlights_lite(duration_sec, num_highlights=0):
         highlights.append(int(hit_time))
     return highlights
 
+def process_user_image(uploaded_file, width, height, output_path):
+    img = Image.open(uploaded_file).convert("RGB")
+    target_ratio = width / height
+    img_ratio = img.width / img.height
+    if img_ratio > target_ratio:
+        new_w = int(img.height * target_ratio)
+        left = (img.width - new_w) // 2
+        img = img.crop((left, 0, left + new_w, img.height))
+    else:
+        new_h = int(img.width / target_ratio)
+        top = (img.height - new_h) // 2
+        img = img.crop((0, top, img.width, top + new_h))
+    img = img.resize((width, height), Image.Resampling.LANCZOS)
+    img.save(output_path)
+    img.close()
+
 def analyze_audio_start(audio_clip):
     duration = audio_clip.duration
     default_start = min(15.0, duration * 0.1)
@@ -117,22 +111,6 @@ def analyze_audio_start(audio_clip):
         del snd_array
         return start_sec
     except: return default_start
-
-def process_user_image(uploaded_file, width, height, output_path):
-    img = Image.open(uploaded_file).convert("RGB")
-    target_ratio = width / height
-    img_ratio = img.width / img.height
-    if img_ratio > target_ratio:
-        new_w = int(img.height * target_ratio)
-        left = (img.width - new_w) // 2
-        img = img.crop((left, 0, left + new_w, img.height))
-    else:
-        new_h = int(img.width / target_ratio)
-        top = (img.height - new_h) // 2
-        img = img.crop((0, top, img.width, top + new_h))
-    img = img.resize((width, height), Image.Resampling.LANCZOS)
-    img.save(output_path)
-    img.close()
 
 # ==========================================
 # 🖼️ 이미지 팩토리: 디자인 생성 함수
@@ -157,7 +135,6 @@ def design_and_save_image(width, height, prompt, seed, title_kr, title_en, font_
         url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
         try:
             response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
-            response.raise_for_status()
             with open(output_path, "wb") as f: f.write(response.content)
             img = Image.open(output_path).convert("RGBA")
         except:
@@ -191,7 +168,7 @@ def design_and_save_image(width, height, prompt, seed, title_kr, title_en, font_
     return output_path
 
 # ==========================================
-# 🎬 비디오 렌더링 엔진 (기존 100% 원본)
+# 🎬 완벽 비디오 렌더링 엔진 (건드리지 않음)
 # ==========================================
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0):
     base_img = Image.open(image_path).convert("RGB")
@@ -214,7 +191,7 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         lyric_font_size = 22  
         window_top = int(height * 0.40) 
         
-    lyric_font = ImageFont.truetype(font_links["나눔고딕 (깔끔/기본)"][0], lyric_font_size)
+    lyric_font = ImageFont.truetype(font_links["나눔고딕 (기본/깔끔)"][0], lyric_font_size)
     line_spacing = 2.0
     
     try:
@@ -268,9 +245,6 @@ def generate_static_video(image_path, audio_clip, output_path, logger):
     clip.write_videofile(output_path, fps=2, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
     clip.close()
 
-# ==========================================
-# 🚀 유튜브 업로드 함수
-# ==========================================
 def upload_to_youtube(video_path, title, description, tags, privacy_status, publish_at=None):
     try:
         from googleapiclient.discovery import build
@@ -300,39 +274,71 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
 # ==========================================
 # 🖥️ 3-Step 앱 UI 구성
 # ==========================================
-tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 가사 생성", "🎨 2. 이미지 팩토리 (디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
+tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 프롬프트 팩토리", "🎨 2. 이미지 팩토리 (디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
 
 # ------------------------------------------
-# [탭 1] 수노 가사 프롬프트 생성기 (드롭다운 복구)
+# [탭 1] 수노 가사 프롬프트 생성기 (완벽 복구)
 # ------------------------------------------
 with tab1:
-    st.header("📝 수노(Suno AI) 맞춤형 프롬프트 & 가사 생성")
+    st.header("📝 수노(Suno AI) 완벽 프롬프트 & 가사 생성기")
+    st.write("주제, 장르, 분위기 등을 세밀하게 선택하여 Suno AI에 딱 맞는 메타태그와 프롬프트를 만드세요.")
     
-    suno_genres_list = ["선택안함", "K-pop", "Acoustic Ballad", "CCM", "Worship", "Gospel", "R&B", "Rock", "Jazz", "Lo-Fi", "Cinematic"]
-    suno_moods_list = ["선택안함", "Emotional", "Uplifting", "Sad", "Joyful", "Holy", "Peaceful", "Energetic", "Dreamy", "Dark"]
-    suno_vocals_list = ["선택안함", "Male vocal", "Female vocal", "Duet", "Choir", "Acoustic (No Vocal)", "Piano only"]
+    suno_subject = st.text_input("🎯 곡의 주제/메시지 (예: 지친 하루의 위로, 십자가의 사랑)")
     
-    col1, col2, col3 = st.columns(3)
-    with col1: s_genre = st.selectbox("🎸 장르/스타일", suno_genres_list)
-    with col2: s_mood = st.selectbox("✨ 분위기", suno_moods_list)
-    with col3: s_vocal = st.selectbox("🎤 보컬", suno_vocals_list)
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        s_pop = st.selectbox("🎧 대중음악 장르 (CCM 선택 시 무시됨)", ["선택안함", "K-pop", "Pop Ballad", "Acoustic Folk", "Indie Pop", "R&B / Soul", "Modern Rock", "Lo-Fi Hip Hop", "City Pop", "Synthpop", "Jazz"])
+    with col_s2:
+        s_ccm = st.selectbox("⛪ CCM 장르", ["선택안함", "Modern Worship", "Traditional Hymns", "Gospel Choir", "CCM Ballad", "Christian Rock", "Acoustic Worship", "Lofi Worship", "Prayer Music"])
+
+    col_s3, col_s4, col_s5 = st.columns(3)
+    with col_s3:
+        s_mood = st.selectbox("✨ 분위기", ["선택안함", "Emotional (감성적인)", "Holy & Reverent (경건한)", "Joyful & Uplifting (기쁘고 희망찬)", "Peaceful & Calm (평화로운)", "Energetic (에너지 넘치는)", "Dark & Heavy (어둡고 무거운)", "Dreamy (몽환적인)"])
+    with col_s4:
+        s_tempo = st.selectbox("🥁 템포(속도)", ["선택안함", "Slow tempo (느린)", "Medium tempo (중간)", "Fast tempo (빠른)", "Up-tempo (경쾌한)", "Rubato (자유로운/감성적인)"])
+    with col_s5:
+        s_vocal = st.selectbox("🎤 보컬 구성", ["선택안함", "Male vocal (남성 보컬)", "Female vocal (여성 보컬)", "Male & Female Duet (혼성 듀엣)", "Massive Gospel Choir (대규모 합창)", "Children's Choir (어린이 합창)", "Husky Male Vocal (허스키 남성)", "Clear Female Vocal (청아한 여성)", "Acoustic (보컬 없음/연주곡)"])
+
+    # 선택된 옵션 조합하여 프롬프트 완성
+    s_selected_genre = s_ccm if s_ccm != "선택안함" else (s_pop if s_pop != "선택안함" else "")
+    prompt_parts = []
+    if suno_subject: prompt_parts.append(f"Song about {suno_subject}")
+    if s_selected_genre: prompt_parts.append(s_selected_genre)
+    if s_mood != "선택안함": prompt_parts.append(s_mood.split(" (")[0])
+    if s_tempo != "선택안함": prompt_parts.append(s_tempo.split(" (")[0])
+    if s_vocal != "선택안함": prompt_parts.append(s_vocal.split(" (")[0])
+
+    final_suno_prompt = ", ".join(prompt_parts)
+
+    st.info("💡 **Suno 'Style of Music' 복사용 프롬프트:**")
+    st.code(final_suno_prompt if final_suno_prompt else "옵션을 선택해주세요.", language="markdown")
     
-    prompt_items = [x for x in [s_genre, s_mood, s_vocal] if x != "선택안함"]
-    st.info(f"💡 **Suno Style Prompt 복사용:**\n\n`{', '.join(prompt_items) if prompt_items else '옵션을 선택하세요'}`")
-    
+    st.divider()
     st.write("📌 가사 구조 태그 삽입 (클릭 시 하단에 추가됨)")
     c1, c2, c3, c4, c5 = st.columns(5)
-    if c1.button("[Intro]"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Intro]\n"
-    if c2.button("[Verse]"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Verse]\n"
-    if c3.button("[Chorus]"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Chorus]\n"
-    if c4.button("[Bridge]"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Bridge]\n"
-    if c5.button("[Outro]"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Outro]\n"
+    if c1.button("[Intro] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Intro]\n"
+    if c2.button("[Verse] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Verse]\n"
+    if c3.button("[Chorus] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Chorus]\n"
+    if c4.button("[Bridge] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Bridge]\n"
+    if c5.button("[Outro] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Outro]\n"
     
-    st.session_state.s_lyrics = st.text_area("가사 작성칸", value=st.session_state.get('s_lyrics', ''), height=200)
+    st.session_state.s_lyrics = st.text_area("가사 작성칸", value=st.session_state.get('s_lyrics', ''), height=250)
 
 # ------------------------------------------
-# [탭 2] 이미지 팩토리 (초정밀 드롭다운 완벽 복구)
+# [탭 2] 이미지 팩토리 (초정밀 프롬프트 완벽 복구)
 # ------------------------------------------
+pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz", "보사노바": "bossa nova", "로파이": "lofi hip hop", "시네마틱 / OST": "cinematic soundtrack"}
+ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship"}
+moods = {"선택안함": "", "경건하고 홀리한": "holy, reverent", "은혜롭고 따뜻한": "graceful, warm", "몽환적이고 신비로운": "ethereal, dreamy", "차분하고 서정적인": "lyrical, calm", "우울하고 쓸쓸한": "melancholic", "밝고 희망찬": "joyful, uplifting", "에너지 넘치는": "energetic"}
+styles = {"선택안함": "", "실사 사진 (초고화질)": "photorealistic, 8k resolution", "수채화": "soft watercolor", "유화": "classic oil painting", "지브리 애니메이션 풍": "studio ghibli style", "신카이 마코토 풍": "makoto shinkai style", "픽사/디즈니 3D 풍": "3D render, pixar style", "빈티지 일러스트": "vintage illustration"}
+lightings = {"선택안함": "", "성스러운 빛": "god rays, volumetric lighting", "따스한 자연광": "natural sunlight", "눈부신 역광": "backlit, lens flare", "부드러운 스튜디오 조명": "soft studio lighting", "어두운 밤": "nighttime, soft moonlight", "화려한 네온사인": "vibrant neon lighting", "골든 아워 (노을빛)": "golden hour lighting"}
+colors = {"선택안함": "", "황금빛 톤": "golden color palette", "따뜻한 웜톤": "warm color palette", "차가운 쿨톤": "cool color palette", "흑백 / 모노톤": "black and white", "부드러운 파스텔": "soft pastel colors", "빈티지": "vintage colors"}
+cameras = {"선택안함": "", "클로즈업": "extreme close-up shot", "바스트 샷": "medium shot", "전신 샷": "full body shot", "풍경 위주": "wide landscape shot", "로우 앵글": "low angle shot", "하이 앵글": "high angle shot", "드론 뷰": "bird's eye view"}
+times = {"선택안함": "", "이른 새벽": "early dawn", "밝은 아침": "bright morning", "화창한 정오": "midday", "늦은 오후": "late afternoon", "해질녘 (골든아워)": "sunset", "푸른 저녁 (블루아워)": "blue hour", "깊은 밤 (자정)": "midnight"}
+weathers = {"선택안함": "", "맑고 쾌청한": "clear weather", "구름이 예쁜 날": "fluffy white clouds", "비 내리는": "raining", "눈 내리는": "snowing", "안개 낀": "thick fog", "흩날리는 벚꽃잎": "falling cherry blossom petals", "무지개가 뜬 날": "beautiful rainbow"}
+eras = {"선택안함": "", "현대 / 도심": "modern day", "근미래 / 사이버펑크": "futuristic, cyberpunk city", "90년대 / Y2K": "1990s retro aesthetic", "80년대": "1980s aesthetic", "중세 판타지": "medieval fantasy world", "빅토리아 시대": "victorian era"}
+effects = {"선택안함": "", "필름 노이즈": "heavy film grain", "빛 번짐": "lens flare", "아웃포커싱": "shallow depth of field", "세피아 필터": "sepia filter", "빛바랜 폴라로이드": "polaroid effect"}
+
 with tab2:
     st.header("🎨 이미지 팩토리 (자동 제목 디자인)")
     st.write("수노에서 완성한 음원을 올리면 제목이 파싱됩니다. 이미지를 직접 올리거나 AI로 자동 생성하세요.")
@@ -361,27 +367,27 @@ with tab2:
     st.divider()
     st.subheader("🎨 2-2. AI 배경 이미지 자동 생성 (디테일 프롬프트)")
     st.write("직접 업로드하지 않고 AI로 만들 경우 아래 설정을 사용합니다.")
-    subject = st.text_input("🎯 메인 주제/사물 (선택)", placeholder="예: 창밖을 바라보는 고양이 (영어로 쓰면 더 정확합니다)")
+    subject = st.text_input("🎯 배경 주제/사물 (선택)", placeholder="예: 창밖을 바라보는 고양이 (영어로 쓰면 더 정확합니다)")
 
     col_g1, col_g2 = st.columns(2)
-    with col_g1: pop_choice = st.selectbox("🎧 대중음악 장르 (CCM 선택 시 무시됨)", list(pop_genres.keys()))
-    with col_g2: ccm_choice = st.selectbox("⛪ CCM 장르", list(ccm_genres.keys()))
+    with col_g1: pop_choice = st.selectbox("🎧 대중음악 장르 이미지 (CCM 선택 시 무시됨)", list(pop_genres.keys()))
+    with col_g2: ccm_choice = st.selectbox("⛪ CCM 장르 이미지", list(ccm_genres.keys()))
 
-    col1, col2 = st.columns(2)
-    with col1:
-        mood_choice = st.selectbox("✨ 분위기", list(moods.keys()))
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        mood_choice = st.selectbox("✨ 그림 분위기", list(moods.keys()))
         style_choice = st.selectbox("🖌️ 그림 스타일", list(styles.keys()))
-    with col2:
+    with col_s2:
         light_choice = st.selectbox("💡 조명 느낌", list(lightings.keys()))
         color_choice = st.selectbox("🌈 색감", list(colors.keys()))
 
     with st.expander("🎬 디테일 연출 설정 (선택사항)"):
-        col3, col4 = st.columns(2)
-        with col3:
+        col_s3, col_s4 = st.columns(2)
+        with col_s3:
             camera_choice = st.selectbox("🎥 카메라 앵글", list(cameras.keys()))
             time_choice = st.selectbox("⏰ 시간대", list(times.keys()))
             weather_choice = st.selectbox("☁️ 날씨", list(weathers.keys()))
-        with col4:
+        with col_s4:
             era_choice = st.selectbox("🏰 배경 시대", list(eras.keys()))
             effect_choice = st.selectbox("✨ 특수효과", list(effects.keys()))
 
@@ -409,7 +415,6 @@ with tab2:
                 st.session_state.img_res_tiktok = None
                 st.session_state.img_res_shorts = []
                 
-                # AI 프롬프트 완성
                 selected_genre = ccm_genres[ccm_choice] if ccm_choice != "선택안함" else pop_genres[pop_choice]
                 prompt_parts = [
                     subject, selected_genre, moods[mood_choice], styles[style_choice], 
@@ -454,7 +459,7 @@ with tab2:
                 col_idx += 1
 
 # ------------------------------------------
-# [탭 3] 비디오 팩토리 (기존 100% 원상복구본)
+# [탭 3] 비디오 팩토리 (기존 무적 렌더링 코드 유지)
 # ------------------------------------------
 with tab3:
     st.header("🎬 비디오 렌더링 & 업로드")
@@ -627,22 +632,22 @@ with tab3:
                     yt_title = st.text_input("📝 영상 제목", value=f"[{st.session_state.base_name}] 은혜로운 찬양")
                     yt_desc = st.text_area("📜 영상 설명", value="할렐루야! 은혜로운 찬양입니다.\n#CCM #찬양", height=150)
                     yt_tags = st.text_input("🏷️ 검색 태그", value="CCM, 찬양, 예배")
-                    privacy_ui = st.selectbox("🔒 상태", ["비공개", "일부 공개", "공개", "예약 업로드"])
+                    privacy_ui = st.selectbox("🔒 공개 상태", ["비공개 (Private)", "일부 공개 (Unlisted)", "공개 (Public)", "예약 업로드 (Scheduled)"])
                     
-                    up_d = None; up_t = None
-                    if privacy_ui == "예약 업로드":
+                    up_date = None; up_time = None
+                    if privacy_ui == "예약 업로드 (Scheduled)":
                         cd, ct = st.columns(2)
-                        with cd: up_d = st.date_input("🗓️ 날짜")
-                        with ct: up_t = st.time_input("⏰ KST 시간")
+                        with cd: up_date = st.date_input("🗓️ 날짜 선택")
+                        with ct: up_time = st.time_input("⏰ 한국 시간(KST) 선택")
                     
                     if st.button("🔥 유튜브로 전송", type="primary", use_container_width=True):
-                        with st.spinner("업로드 중입니다..."):
-                            p_map = {"비공개":"private", "일부 공개":"unlisted", "공개":"public", "예약 업로드":"private"}
-                            pub_at = None
-                            if privacy_ui == "예약 업로드":
-                                dt_utc = datetime.combine(up_d, up_t, tzinfo=timezone(timedelta(hours=9))).astimezone(timezone.utc)
-                                pub_at = dt_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
+                        with st.spinner("안전하게 업로드 중입니다..."):
+                            p_map = {"비공개 (Private)": "private", "일부 공개 (Unlisted)": "unlisted", "공개 (Public)": "public", "예약 업로드 (Scheduled)": "private"}
+                            final_pub = None
+                            if privacy_ui == "예약 업로드 (Scheduled)":
+                                dt_utc = datetime.combine(up_date, up_time, tzinfo=timezone(timedelta(hours=9))).astimezone(timezone.utc)
+                                final_pub = dt_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
                                 
-                            success, msg = upload_to_youtube(s_vid_path, yt_title, yt_desc, yt_tags, p_map[privacy_ui], pub_at)
+                            success, msg = upload_to_youtube(s_vid_path, yt_title, yt_desc, yt_tags, p_map[privacy_ui], final_pub)
                             if success: st.success(msg); st.balloons()
                             else: st.error(msg)
