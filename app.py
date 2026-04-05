@@ -6,8 +6,6 @@ import random
 import gc
 import numpy as np
 import urllib.parse
-import zipfile
-import io
 from datetime import datetime, timedelta, timezone
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip
 import moviepy.audio.fx.all as afx
@@ -25,10 +23,11 @@ if 'tiktok_video_path' not in st.session_state: st.session_state.tiktok_video_pa
 if 'shorts_paths' not in st.session_state: st.session_state.shorts_paths = []
 if 'base_name' not in st.session_state: st.session_state.base_name = ""
 
-# AI 가사 생성용 세션
+# AI 가사/프롬프트 생성용 세션
 if 'gen_title_kr' not in st.session_state: st.session_state.gen_title_kr = ""
 if 'gen_title_en' not in st.session_state: st.session_state.gen_title_en = ""
-if 's_lyrics' not in st.session_state: st.session_state.s_lyrics = ""
+if 'gen_lyrics' not in st.session_state: st.session_state.gen_lyrics = ""
+if 'gen_prompt' not in st.session_state: st.session_state.gen_prompt = ""
 
 # ==========================================
 # 🔠 폰트 다운로드 (디자인용 3종 세트)
@@ -301,17 +300,18 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
 # ==========================================
 # 🖥️ 3-Step 앱 UI 구성
 # ==========================================
-tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 가사 생성", "🎨 2. 이미지 팩토리 (디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
+tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 원클릭 프롬프트", "🎨 2. 이미지 팩토리 (디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
 
 # ------------------------------------------
-# [탭 1] 수노 가사 프롬프트 생성기
+# [탭 1] 수노 전용 가사 프롬프트 복사기
 # ------------------------------------------
 with tab1:
     st.header("📝 수노(Suno AI) 완벽 프롬프트 & 가사 생성기")
-    st.write("주제, 장르, 분위기 등을 세밀하게 선택하면 AI가 맞춤형 메타태그 프롬프트와 가사를 자동으로 작사합니다.")
+    st.write("메뉴를 선택하고 생성 버튼을 누르면 수노(Suno)에 바로 붙여넣기 할 수 있는 완벽한 텍스트가 만들어집니다.")
     
-    suno_subject = st.text_input("🎯 곡의 주제/메시지 (예: 지친 하루의 위로, 십자가의 사랑, 첫사랑의 설렘)")
+    suno_subject = st.text_input("🎯 곡의 주제/메시지 (필수 입력, 예: 지친 하루의 위로, 첫사랑의 설렘)")
     
+    # 🎸 20개 이상의 장르 리스트
     suno_pop_list = ["선택안함", "K-pop (케이팝)", "팝 발라드 (Pop Ballad)", "어쿠스틱 포크 (Acoustic Folk)", "인디 팝 (Indie Pop)", "R&B / Soul (알앤비/소울)", "모던 락 (Modern Rock)", "로파이 힙합 (Lo-Fi Hip Hop)", "시티팝 (City Pop)", "신스팝 (Synthpop)", "재즈 (Jazz)", "보사노바 (Bossa Nova)", "블루스 (Blues)", "컨트리 (Country)", "트로트 (Trot)", "일렉트로닉 (EDM)", "펑크 (Funk)", "디스코 (Disco)", "드림팝 (Dream Pop)", "얼터너티브 락 (Alt Rock)", "앰비언트 (Ambient)", "클래식 크로스오버 (Classical Crossover)"]
     suno_ccm_list = ["선택안함", "모던 워십 (Modern Worship)", "전통 찬송가 편곡 (Traditional Hymns)", "가스펠 콰이어 (Gospel Choir)", "CCM 발라드 (CCM Ballad)", "워십 락 (Christian Rock)", "어쿠스틱 찬양 (Acoustic Worship)", "로파이 워십 (Lofi Worship)", "피아노 묵상 (Piano Prayer)", "시네마틱 워십 (Cinematic Worship)", "어린이 찬양 (Children's Worship)", "흑인 영가 (Black Gospel)", "소울 CCM (Soul CCM)", "재즈 워십 (Jazz Worship)", "컨트리 가스펠 (Country Gospel)", "아카펠라 (A Cappella)", "켈틱 워십 (Celtic Worship)", "일렉트로닉 워십 (EDM Worship)", "레게 CCM (Reggae CCM)", "라틴 가스펠 (Latin Gospel)", "스포큰 워드 기도 (Spoken Word)"]
     
@@ -319,28 +319,45 @@ with tab1:
     with col_s1: s_pop = st.selectbox("🎧 대중음악 장르 (CCM 선택 시 무시됨)", suno_pop_list)
     with col_s2: s_ccm = st.selectbox("⛪ CCM / 예배음악 장르", suno_ccm_list)
 
+    # ✨ 15개 이상의 분위기, 템포, 보컬, 악기 리스트
     suno_moods_list = ["선택안함", "감성적인 (Emotional)", "경건하고 거룩한 (Holy, Reverent)", "기쁘고 희망찬 (Joyful, Uplifting)", "평화롭고 차분한 (Peaceful, Calm)", "에너지 넘치는 (Energetic)", "어둡고 무거운 (Dark, Heavy)", "몽환적인 (Dreamy, Ethereal)", "웅장한 (Epic, Majestic)", "쓸쓸하고 우울한 (Melancholic, Sad)", "따뜻하고 포근한 (Warm, Comforting)", "신비로운 (Mysterious)", "향수를 부르는 (Nostalgic)", "사랑스러운 (Romantic, Sweet)", "결연하고 비장한 (Determined)", "치유되는 (Healing, Soothing)", "흥겨운 (Groovy, Fun)"]
     suno_tempo_list = ["선택안함", "매우 느린 (Very Slow)", "느린 (Slow tempo)", "중간 느린 (Moderately Slow)", "중간 (Medium tempo)", "조금 빠른 (Allegretto)", "빠른 (Fast tempo)", "매우 빠른 (Very Fast)", "경쾌한 업템포 (Up-tempo)", "점점 빠르게 (Accelerando)", "점점 느리게 (Ritardando)", "자유로운 템포 (Rubato)", "안정적인 8비트 (Steady 8-beat)", "그루비한 16비트 (Groovy 16-beat)", "다이나믹 박자 (Dynamic Tempo)", "바운스 템포 (Bounce Tempo)", "왈츠풍 3/4박자 (Waltz Time)"]
-    suno_vocals_list = ["선택안함", "--- [ 👨 남성 보컬 ] ---", "남성 솔로 (Male vocal)", "허스키한 남성 (Husky male vocal)", "맑고 청아한 남성 (Clear male vocal)", "깊고 중후한 저음 남성 (Deep bass male vocal)", "따뜻한 중저음 남성 (Warm baritone male vocal)", "파워풀한 고음 남성 (Powerful high-pitch male vocal)", "부드럽고 감미로운 남성 (Soft and sweet male vocal)", "소울풀한 흑인 남성 (Soulful black male vocal)", "속삭이는 듯한 남성 (Whispering male vocal)", "거칠고 락적인 남성 (Gritty rock male vocal)", "소년 보컬 (Boy vocal)", "--- [ 👩 여성 보컬 ] ---", "여성 솔로 (Female vocal)", "허스키한 여성 (Husky female vocal)", "맑고 청아한 여성 (Clear female vocal)", "깊고 풍부한 저음 여성 (Deep rich female vocal)", "따뜻한 중저음 여성 (Warm alto female vocal)", "파워풀한 고음 여성 (Powerful belting female vocal)", "부드럽고 감미로운 여성 (Soft and sweet female vocal)", "소울풀한 흑인 여성 (Soulful black female vocal)", "속삭이는 듯한 여성 (Whispering female vocal)", "몽환적인 에테리얼 여성 (Ethereal dreamy female vocal)", "소녀 보컬 (Girl vocal)", "--- [ 👩‍❤️‍👨 듀엣 보컬 ] ---", "남녀 듀엣 (Male and female duet)", "감미로운 남녀 듀엣 (Sweet male and female duet)", "파워풀한 남녀 듀엣 (Powerful male and female duet)", "애절한 남녀 듀엣 (Sorrowful male and female duet)", "속삭이는 남녀 듀엣 (Whispering male and female duet)", "웅장한 남녀 듀엣 (Epic male and female duet)", "어쿠스틱 남녀 듀엣 (Acoustic male and female duet)", "남남 듀엣 (Male to male duet)", "감미로운 남남 듀엣 (Sweet male to male duet)", "파워풀한 남남 듀엣 (Powerful male to male duet)", "화음 위주 남남 듀엣 (Harmonious male to male duet)", "여여 듀엣 (Female to female duet)", "맑은 여여 듀엣 (Clear female to female duet)", "파워풀한 여여 듀엣 (Powerful female to female duet)", "화음 위주 여여 듀엣 (Harmonious female to female duet)", "소년 소녀 듀엣 (Boy and girl duet)", "중저음 남녀 듀엣 (Low pitch male and female duet)", "허스키 보컬 듀엣 (Husky vocal duet)", "소울풀 듀엣 (Soulful vocal duet)", "R&B 스타일 듀엣 (R&B style duet)", "팝 스타일 듀엣 (Pop style duet)", "--- [ 🎼 합창 및 기타 ] ---", "대규모 가스펠 합창 (Massive gospel choir)", "어린이 합창단 (Children's choir)", "장엄한 클래식 합창 (Majestic classical choir)", "잔잔한 아카펠라 합창 (Calm a cappella choir)", "남성 합창단 (Male choir)", "여성 합창단 (Female choir)", "천상의 목소리 합창 (Angelic ethereal choir)", "아프리칸 소울 합창 (African soul choir)", "현대 워십 코러스 (Modern worship chorus)", "보컬 없음 / 연주곡 (Instrumental only)"]
+    suno_inst_list = ["선택안함", "어쿠스틱 기타 (Acoustic Guitar)", "피아노 (Piano)", "신디사이저 (Synthesizer)", "일렉기타 (Electric Guitar)", "웅장한 오케스트라 (Orchestra)", "아름다운 현악기 (Strings)", "금관악기 (Brass)", "무거운 베이스 (Heavy Bass)", "어쿠스틱 밴드 (Acoustic Band)", "로파이 비트 (Lo-Fi Beats)", "808 드럼 (808 Drum Machine)", "파이프 오르간 (Pipe Organ)", "하프 (Harp)", "첼로 (Cello)"]
+    suno_vocals_list = [
+        "선택안함",
+        "--- [ 👨 남성 보컬 ] ---",
+        "남성 솔로 (Male vocal)", "허스키한 남성 (Husky male vocal)", "맑고 청아한 남성 (Clear male vocal)", "깊고 중후한 저음 남성 (Deep bass male vocal)", "따뜻한 중저음 남성 (Warm baritone male vocal)", "파워풀한 고음 남성 (Powerful high-pitch male vocal)", "부드럽고 감미로운 남성 (Soft and sweet male vocal)", "소울풀한 흑인 남성 (Soulful black male vocal)", "속삭이는 듯한 남성 (Whispering male vocal)", "거칠고 락적인 남성 (Gritty rock male vocal)", "소년 보컬 (Boy vocal)",
+        "--- [ 👩 여성 보컬 ] ---",
+        "여성 솔로 (Female vocal)", "허스키한 여성 (Husky female vocal)", "맑고 청아한 여성 (Clear female vocal)", "깊고 풍부한 저음 여성 (Deep rich female vocal)", "따뜻한 중저음 여성 (Warm alto female vocal)", "파워풀한 고음 여성 (Powerful belting female vocal)", "부드럽고 감미로운 여성 (Soft and sweet female vocal)", "소울풀한 흑인 여성 (Soulful black female vocal)", "속삭이는 듯한 여성 (Whispering female vocal)", "몽환적인 에테리얼 여성 (Ethereal dreamy female vocal)", "소녀 보컬 (Girl vocal)",
+        "--- [ 👩‍❤️‍👨 듀엣 보컬 ] ---",
+        "남녀 듀엣 (Male and female duet)", "감미로운 남녀 듀엣 (Sweet male and female duet)", "파워풀한 남녀 듀엣 (Powerful male and female duet)", "애절한 남녀 듀엣 (Sorrowful male and female duet)", "속삭이는 남녀 듀엣 (Whispering male and female duet)", "웅장한 남녀 듀엣 (Epic male and female duet)", "어쿠스틱 남녀 듀엣 (Acoustic male and female duet)", "남남 듀엣 (Male to male duet)", "감미로운 남남 듀엣 (Sweet male to male duet)", "파워풀한 남남 듀엣 (Powerful male to male duet)", "화음 위주 남남 듀엣 (Harmonious male to male duet)", "여여 듀엣 (Female to female duet)", "맑은 여여 듀엣 (Clear female to female duet)", "파워풀한 여여 듀엣 (Powerful female to female duet)", "화음 위주 여여 듀엣 (Harmonious female to female duet)", "소년 소녀 듀엣 (Boy and girl duet)", "중저음 남녀 듀엣 (Low pitch male and female duet)", "허스키 보컬 듀엣 (Husky vocal duet)", "소울풀 듀엣 (Soulful vocal duet)", "R&B 스타일 듀엣 (R&B style duet)", "팝 스타일 듀엣 (Pop style duet)",
+        "--- [ 🎼 합창 및 기타 ] ---",
+        "대규모 가스펠 합창 (Massive gospel choir)", "어린이 합창단 (Children's choir)", "장엄한 클래식 합창 (Majestic classical choir)", "잔잔한 아카펠라 합창 (Calm a cappella choir)", "남성 합창단 (Male choir)", "여성 합창단 (Female choir)", "천상의 목소리 합창 (Angelic ethereal choir)", "아프리칸 소울 합창 (African soul choir)", "현대 워십 코러스 (Modern worship chorus)", "보컬 없음 / 연주곡 (Instrumental only)"
+    ]
 
-    col_s3, col_s4, col_s5 = st.columns(3)
+    col_s3, col_s4 = st.columns(2)
     with col_s3: s_mood = st.selectbox("✨ 곡의 분위기", suno_moods_list)
     with col_s4: s_tempo = st.selectbox("🥁 템포 (속도)", suno_tempo_list)
-    with col_s5: s_vocal = st.selectbox("🎤 보컬 구성", [v for v in suno_vocals_list if not v.startswith("---")])
+    
+    col_s5, col_s6 = st.columns(2)
+    with col_s5: s_inst = st.selectbox("🎹 주요 악기", suno_inst_list)
+    with col_s6: s_vocal = st.selectbox("🎤 보컬 구성", [v for v in suno_vocals_list if not v.startswith("---")])
 
+    # Suno 프롬프트 영문 조합
     s_selected_genre = s_ccm if s_ccm != "선택안함" else (s_pop if s_pop != "선택안함" else "")
     prompt_parts = []
     if s_selected_genre: prompt_parts.append(extract_eng(s_selected_genre))
     if s_mood != "선택안함": prompt_parts.append(extract_eng(s_mood))
     if s_tempo != "선택안함": prompt_parts.append(extract_eng(s_tempo))
+    if s_inst != "선택안함": prompt_parts.append(extract_eng(s_inst))
     if s_vocal != "선택안함": prompt_parts.append(extract_eng(s_vocal))
-    final_suno_prompt = ", ".join(prompt_parts)
+    final_suno_prompt = ", ".join(prompt_parts)[:1000] # 수노 글자수 1000자 제한 방지
 
-    if st.button("✨ AI 제목 및 가사 자동 생성", type="primary"):
-        if not suno_subject: st.error("🎯 곡의 주제를 입력해주세요!")
+    if st.button("✨ 수노 전용 제목 및 가사 1초 완성", type="primary", use_container_width=True):
+        if not suno_subject: st.error("🎯 곡의 주제를 가장 먼저 입력해주세요!")
         else:
-            with st.spinner("AI가 감성을 담아 가사를 작사하고 있습니다..."):
-                query = f"주제: '{suno_subject}', 장르: {s_selected_genre}, 분위기: {s_mood}, 템포: {s_tempo}, 보컬: {s_vocal}. 이 곡의 한글제목, 영문제목, 그리고 수노(Suno)에 쓸 가사(반드시 [Intro], [Verse], [Chorus], [Outro] 등 메타태그 포함)를 써줘. 응답형식:\n한글제목:\n영문제목:\n가사:\n"
+            with st.spinner("AI가 수노 양식에 맞춰 완벽한 가사를 작성하고 있습니다..."):
+                query = f"주제: '{suno_subject}', 장르: {s_selected_genre}, 분위기: {s_mood}, 템포: {s_tempo}, 보컬: {s_vocal}. 이 곡의 한글제목, 영문제목, 그리고 수노(Suno)에 바로 복사해서 쓸 가사를 써줘. 가사에는 반드시 [Intro], [Verse 1], [Chorus], [Verse 2], [Bridge], [Guitar Solo], [Outro] 같은 대괄호 메타태그를 곡의 흐름에 맞게 적재적소에 넣어줘. 응답형식:\n한글제목:\n영문제목:\n가사:\n"
                 res_text = generate_ai_text(query)
                 
                 match_kr = re.search(r"한글제목:\s*(.+)", res_text)
@@ -349,45 +366,27 @@ with tab1:
                 
                 st.session_state.gen_title_kr = match_kr.group(1).strip() if match_kr else "제목 생성 실패"
                 st.session_state.gen_title_en = match_en.group(1).strip() if match_en else ""
-                st.session_state.s_lyrics = match_lyrics.group(1).strip() if match_lyrics else res_text
+                st.session_state.gen_lyrics = match_lyrics.group(1).strip() if match_lyrics else res_text
+                st.session_state.gen_prompt = final_suno_prompt
                 
-            st.success("🎉 작사가 완료되었습니다! 아래 에디터에서 수정하거나 복사존에서 복사하세요.")
+            st.success("🎉 작사가 완료되었습니다! 아래 박스 우측 상단의 📋 아이콘을 클릭하여 수노에 바로 붙여넣기 하세요.")
 
     st.divider()
-    st.subheader("🛠️ 수동 에디터 (수정 시 하단 복사존에 실시간 반영)")
-    col_r1, col_r2 = st.columns(2)
-    with col_r1: st.session_state.gen_title_kr = st.text_input("📌 한글 제목", value=st.session_state.gen_title_kr)
-    with col_r2: st.session_state.gen_title_en = st.text_input("📌 영문 제목", value=st.session_state.gen_title_en)
+    st.subheader("📋 수노(Suno) 원클릭 복사존")
+    st.write("오직 복사만을 위해 준비된 깔끔한 공간입니다.")
+
+    st.write("**1. 🎵 Title (곡 제목)**")
+    combined_title = f"{st.session_state.gen_title_kr}_{st.session_state.gen_title_en}" if st.session_state.gen_title_en else st.session_state.gen_title_kr
+    st.code(combined_title if combined_title.strip('_') else "주제를 적고 생성 버튼을 누르세요.", language="text")
     
-    st.write("📌 가사 구조 태그 삽입 (클릭 시 가사 맨 끝에 추가됨)")
-    c1, c2, c3, c4, c5 = st.columns(5)
-    if c1.button("[Intro] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Intro]\n"
-    if c2.button("[Verse] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Verse]\n"
-    if c3.button("[Chorus] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Chorus]\n"
-    if c4.button("[Bridge] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Bridge]\n"
-    if c5.button("[Outro] 추가"): st.session_state.s_lyrics = st.session_state.get('s_lyrics', '') + "\n[Outro]\n"
-    
-    st.session_state.s_lyrics = st.text_area("가사 작성칸", value=st.session_state.get('s_lyrics', ''), height=200)
+    st.write("**2. 🎸 Style of Music (음악 스타일)**")
+    st.code(st.session_state.get('gen_prompt', final_suno_prompt) if st.session_state.get('gen_prompt', final_suno_prompt) else "옵션을 선택하세요.", language="text")
 
-    st.divider()
-    st.subheader("📋 수노(Suno) 전용 원클릭 복사존")
-    st.info("우측 상단의 네모난 📋 복사 아이콘을 누르면 쉽게 복사됩니다.")
-
-    col_c1, col_c2 = st.columns(2)
-    with col_c1:
-        st.write("**1. 🎵 곡 제목 (Title)**")
-        combined_title = f"{st.session_state.gen_title_kr}_{st.session_state.gen_title_en}" if st.session_state.gen_title_en else st.session_state.gen_title_kr
-        st.code(combined_title if combined_title.strip('_') else "제목을 생성하거나 입력하세요.", language="text")
-    with col_c2:
-        st.write("**2. 🎸 음악 스타일 (Style of Music)**")
-        st.code(final_suno_prompt if final_suno_prompt else "옵션을 선택하세요.", language="text")
-
-    st.write("**3. 📝 가사 (Lyrics)**")
-    st.code(st.session_state.get('s_lyrics', '가사를 생성하거나 입력하세요.') if st.session_state.get('s_lyrics', '').strip() else "가사를 생성하거나 입력하세요.", language="text")
-
+    st.write("**3. 📝 Lyrics (가사)**")
+    st.code(st.session_state.get('gen_lyrics', '생성된 가사가 여기에 표시됩니다.'), language="text")
 
 # ------------------------------------------
-# [탭 2] 이미지 팩토리 
+# [탭 2] 이미지 팩토리 (초대형 이미지 프롬프트)
 # ------------------------------------------
 img_pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz club", "보사노바": "bossa nova relaxing", "로파이": "lofi hip hop aesthetic", "시네마틱 / OST": "cinematic soundtrack", "EDM / 일렉트로닉": "EDM festival vibe", "레트로 펑크": "retro funk groove", "컨트리": "country music vibe", "블루스": "blues club vibe", "클래식 크로스오버": "classical crossover elegant", "레게": "reggae beach vibe"}
 img_ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship", "어린이 찬양": "joyful children sunday school", "흑인 영가": "black gospel soulful", "재즈 워십": "jazz worship elegant", "컨트리 가스펠": "country gospel peaceful", "아카펠라": "a cappella worship choir", "켈틱 워십": "celtic christian worship", "EDM 워십": "youth worship energetic", "라틴 워십": "latin worship joyful", "스포큰 워드 기도": "deep prayer spoken word"}
@@ -465,7 +464,7 @@ with tab2:
         gen_tiktok = st.checkbox("📱 틱톡 풀영상 (세로 9:16)", value=False)
         img_up_tiktok = st.file_uploader("직접 배경 올리기 (세로)", type=['jpg','png'])
     with col_i3:
-        num_s_img = st.slider("✂️ 쇼츠 전용 (세로) 개수", 0, 6, 0)
+        num_s_img = st.slider("✂️ 쇼츠 이미지 (세로) 개수", 0, 6, 0)
         img_up_shorts = []
         for i in range(num_s_img):
             img_up_shorts.append(st.file_uploader(f"쇼츠 {i+1} 직접 올리기", type=['jpg','png'], key=f"s_img_{i}"))
@@ -522,7 +521,7 @@ with tab2:
                 col_idx += 1
 
 # ------------------------------------------
-# [탭 3] 비디오 팩토리 
+# [탭 3] 비디오 팩토리 (기존 무적 렌더링 유지)
 # ------------------------------------------
 with tab3:
     st.header("🎬 비디오 렌더링 & 유튜브 업로드")
@@ -548,7 +547,7 @@ with tab3:
             v_img_shorts.append(st.file_uploader(f"쇼츠 {i+1} 이미지", type=['png','jpg'], key=f"v_s_{i}"))
 
         st.divider()
-        v_lyrics = st.text_area("📝 스크롤 가사 ([] 자동삭제)", value=st.session_state.get('s_lyrics', ''), height=150)
+        v_lyrics = st.text_area("📝 스크롤 가사 ([] 자동삭제)", value=st.session_state.get('gen_lyrics', ''), height=150)
         v_sync = st.text_input("⏱️ 가사 시작 시간 (예: 00:15)", placeholder="비워두면 AI가 분석")
 
     with col_v2:
@@ -638,7 +637,7 @@ with tab3:
 
                     full_audio.close()
                     st.session_state.is_completed = True
-                    step_title.markdown("#### ✨ 모든 렌더링 완료! 아래에서 결과물을 확인하세요.")
+                    step_title.markdown("#### ✨ 모든 렌더링 완료! 아래에서 결과물을 다운로드하세요.")
 
                 except Exception as e:
                     st.error(f"오류가 발생했습니다: {e}")
@@ -649,21 +648,6 @@ with tab3:
         if st.session_state.is_completed:
             st.success("🎉 비디오 렌더링이 성공적으로 완료되었습니다!")
             
-            # 🔥 [📦 전체 다운로드 (ZIP)] 생성
-            zip_buffer = io.BytesIO()
-            with zipfile.ZipFile(zip_buffer, "w") as zf:
-                if st.session_state.main_video_path and os.path.exists(st.session_state.main_video_path):
-                    zf.write(st.session_state.main_video_path, f"{st.session_state.base_name}_Main.mp4")
-                if st.session_state.tiktok_video_path and os.path.exists(st.session_state.tiktok_video_path):
-                    zf.write(st.session_state.tiktok_video_path, f"{st.session_state.base_name}_TikTok.mp4")
-                for i, p in enumerate(st.session_state.shorts_paths):
-                    if os.path.exists(p):
-                        zf.write(p, f"{st.session_state.base_name}_Short_{i+1}.mp4")
-            
-            st.download_button("📦 전체 영상 한 번에 다운로드 (ZIP)", zip_buffer.getvalue(), file_name=f"{st.session_state.base_name}_All_Videos.zip", mime="application/zip", type="primary", use_container_width=True)
-            
-            st.divider()
-
             tabs = st.tabs(["📺 메인", "📱 틱톡"] + [f"✂️ 쇼츠 {i+1}" for i in range(len(st.session_state.shorts_paths))])
             
             t_idx = 0
@@ -671,24 +655,21 @@ with tab3:
                 with tabs[t_idx]:
                     st.video(st.session_state.main_video_path)
                     with open(st.session_state.main_video_path, "rb") as f:
-                        st.download_button("⬇️ 메인 영상 다운로드", f, file_name=f"{st.session_state.base_name}_Main.mp4", mime="video/mp4", use_container_width=True)
+                        st.download_button("⬇️ 메인 영상 다운로드 (.mp4)", f, file_name=f"{st.session_state.base_name}_Main.mp4", mime="video/mp4", use_container_width=True)
                 t_idx += 1
                 
             if st.session_state.tiktok_video_path:
                 with tabs[t_idx]:
-                    # 🔥 세로 영상 보기 편하게 화면 폭 축소
-                    col_vid, _ = st.columns([1, 1.5])
-                    with col_vid: st.video(st.session_state.tiktok_video_path)
+                    st.video(st.session_state.tiktok_video_path)
                     with open(st.session_state.tiktok_video_path, "rb") as f:
-                        st.download_button("⬇️ 틱톡 풀영상 다운로드", f, file_name=f"{st.session_state.base_name}_TikTok.mp4", mime="video/mp4", use_container_width=True)
+                        st.download_button("⬇️ 틱톡 풀영상 다운로드 (.mp4)", f, file_name=f"{st.session_state.base_name}_TikTok.mp4", mime="video/mp4", use_container_width=True)
                 t_idx += 1
                     
             for i, shorts_path in enumerate(st.session_state.shorts_paths):
                 with tabs[t_idx]:
-                    col_vid, _ = st.columns([1, 1.5])
-                    with col_vid: st.video(shorts_path)
+                    st.video(shorts_path)
                     with open(shorts_path, "rb") as f:
-                        st.download_button(f"⬇️ 쇼츠 {i+1} 다운로드", f, file_name=f"{st.session_state.base_name}_Short_{i+1}.mp4", mime="video/mp4", use_container_width=True)
+                        st.download_button(f"⬇️ 쇼츠 {i+1} 다운로드 (.mp4)", f, file_name=f"{st.session_state.base_name}_Short_{i+1}.mp4", mime="video/mp4", use_container_width=True)
                 t_idx += 1
 
             st.divider()
@@ -704,23 +685,16 @@ with tab3:
                     
                 up_opts = {}
                 if st.session_state.main_video_path: up_opts["📺 메인 영상"] = st.session_state.main_video_path
-                if st.session_state.tiktok_video_path: up_opts["📱 틱톡 풀영상"] = st.session_state.tiktok_video_path
+                if st.session_state.tiktok_video_path: up_opts["📱 틱톡 영상"] = st.session_state.tiktok_video_path
                 for i, p in enumerate(st.session_state.shorts_paths): up_opts[f"✂️ 쇼츠 {i+1}"] = p
                     
                 if up_opts:
                     s_vid_key = st.selectbox("📌 업로드할 영상 선택", list(up_opts.keys()))
                     s_vid_path = up_opts[s_vid_key]
                     
-                    # 🔥 은혜롭고 풍성한 텍스트 완벽 복원
-                    yt_title_val = f"[{st.session_state.gen_title_kr or st.session_state.base_name}] 은혜로운 찬양 플레이리스트"
-                    yt_title = st.text_input("📝 영상 제목", value=yt_title_val)
-                    
-                    ccm_desc_template = f"""할렐루야! 오늘 함께 나눌 찬양은 '{st.session_state.gen_title_kr or st.session_state.base_name}' 입니다. 🌿\n\n지치고 상한 마음, 예배의 자리를 사모하는 모든 분들께 이 찬양이 작은 위로와 평안이 되기를 소망합니다.\n가사를 묵상하며 주님의 크신 사랑과 은혜를 깊이 경험하는 귀한 시간 되시길 기도합니다. \n\n항상 주님 안에서 승리하시고, 오늘 하루도 말씀과 기도로 나아가는 복된 하루 되세요! 🙏\n\n🔔 구독과 좋아요는 은혜로운 찬양을 나누는 데 큰 힘이 됩니다. 💖\n\n#CCM #찬양 #예배 #은혜 #위로 #기도 #기독교 #교회 #찬양추천 #플레이리스트"""
-                    yt_desc = st.text_area("📜 영상 설명", value=ccm_desc_template, height=300)
-                    
-                    ccm_tags = "CCM, 찬양, 예배, 은혜, 기독교, 교회, 찬송가, 워십, 복음성가, 기도, 묵상, 힐링찬양, 위로, 평안, 찬양추천, 플레이리스트, worship, praise, 주일예배, 특송, 은혜로운찬양, 아침찬양, 수면찬양"
-                    yt_tags = st.text_input("🏷️ 검색 태그", value=ccm_tags)
-                    
+                    yt_title = st.text_input("📝 영상 제목", value=f"[{st.session_state.base_name}] 은혜로운 찬양")
+                    yt_desc = st.text_area("📜 영상 설명", value=f"할렐루야! 은혜로운 찬양입니다.\n\n#CCM #찬양", height=150)
+                    yt_tags = st.text_input("🏷️ 검색 태그", value="CCM, 찬양, 예배")
                     privacy_ui = st.selectbox("🔒 공개 상태", ["비공개 (Private)", "일부 공개 (Unlisted)", "공개 (Public)", "예약 업로드 (Scheduled)"])
                     
                     up_date = None; up_time = None
