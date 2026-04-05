@@ -11,27 +11,36 @@ import moviepy.audio.fx.all as afx
 from PIL import Image, ImageDraw, ImageFont, ImageChops
 from proglog import ProgressBarLogger
 
-st.set_page_config(page_title="은혜로운 찬양 팩토리", page_icon="🕊️", layout="wide")
-
-# --- 💾 메모리 유지 ---
-if 'is_completed' not in st.session_state: st.session_state.is_completed = False
-if 'main_video_path' not in st.session_state: st.session_state.main_video_path = ""
-if 'tiktok_video_path' not in st.session_state: st.session_state.tiktok_video_path = ""
-if 'shorts_paths' not in st.session_state: st.session_state.shorts_paths = []
-if 'clean_lyrics' not in st.session_state: st.session_state.clean_lyrics = ""
-if 'base_name' not in st.session_state: st.session_state.base_name = ""
-
-# --- 🔠 폰트 다운로드 ---
-font_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"
-font_path = "NanumGothicBold.ttf"
-if not os.path.exists(font_path):
-    with open(font_path, "wb") as f: f.write(requests.get(font_url).content)
-
-st.title("🕊️ 은혜로운 찬양 영상 팩토리 (AI 자동 생성판)")
-st.write("이미지를 업로드하지 않으면 AI가 자동으로 앨범 커버를 생성하고 제목을 그려줍니다.")
+st.set_page_config(page_title="AI 뮤직비디오 팩토리 (3-Step)", page_icon="🎬", layout="wide")
 
 # ==========================================
-# 🌟 진행률 로거
+# 💾 세션 상태 및 메모리 유지
+# ==========================================
+if 'audio_path' not in st.session_state: st.session_state.audio_path = ""
+if 'title_kr' not in st.session_state: st.session_state.title_kr = ""
+if 'title_en' not in st.session_state: st.session_state.title_en = ""
+if 'img_main' not in st.session_state: st.session_state.img_main = None
+if 'img_tiktok' not in st.session_state: st.session_state.img_tiktok = None
+if 'img_shorts' not in st.session_state: st.session_state.img_shorts = []
+if 'clean_lyrics' not in st.session_state: st.session_state.clean_lyrics = ""
+
+# ==========================================
+# 🔠 폰트 다운로드 세팅 (3가지 스타일)
+# ==========================================
+font_links = {
+    "나눔고딕 (깔끔/기본)": ("NanumGothicBold.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"),
+    "검은고딕 (강렬/임팩트)": ("BlackHanSans.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/blackhansans/BlackHanSans-Regular.ttf"),
+    "노토산스 (세련/모던)": ("NotoSansKR.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanskr/NotoSansKR-Bold.ttf")
+}
+
+for name, (file_name, url) in font_links.items():
+    if not os.path.exists(file_name):
+        try:
+            with open(file_name, "wb") as f: f.write(requests.get(url).content)
+        except: pass
+
+# ==========================================
+# 🌟 유틸리티 함수 모음
 # ==========================================
 class StreamlitProgressLogger(ProgressBarLogger):
     def __init__(self, st_bar, st_text, prefix):
@@ -51,24 +60,6 @@ class StreamlitProgressLogger(ProgressBarLogger):
                 self.st_text.text(f"⏳ {self.prefix} - {task_type}: {int(percent * 100)}%")
                 self.last_percent = percent
 
-# ==========================================
-# 🎯 AI 초정밀 프롬프트 사전 (부활!)
-# ==========================================
-pop_genres = {"선택안함": "", "팝 (Pop)": "pop music vibe", "감성 발라드": "emotional ballad vibe", "정통 발라드": "classic korean ballad", "어쿠스틱 발라드": "acoustic guitar ballad", "인디 팝": "indie pop aesthetic", "인디 포크": "indie folk", "인디 라틴": "indie latin", "모던 락": "modern rock band", "얼터너티브 락": "alternative rock", "드림팝": "dream pop", "신스팝": "synthpop", "시티팝": "retro city pop", "알앤비 / 소울": "smooth R&B soul", "네오 소울": "neo soul", "재즈": "classic jazz", "보사노바": "bossa nova", "로파이": "lofi hip hop", "시네마틱 / OST": "cinematic soundtrack"}
-ccm_genres = {"선택안함": "", "전통 찬송가": "traditional hymns", "모던 워십": "modern christian worship", "라이브 워십": "live worship concert", "어쿠스틱 찬양": "acoustic worship", "가스펠 콰이어": "joyful gospel choir", "CCM 발라드": "emotional christian ballad", "워십 락": "christian rock", "로파이 워십": "lofi christian worship", "피아노 묵상곡": "peaceful piano worship", "시네마틱 오케스트라 찬양": "epic orchestral worship"}
-moods = {"선택안함": "", "경건하고 홀리한": "holy, reverent", "은혜롭고 따뜻한": "graceful, warm", "몽환적이고 신비로운": "ethereal, dreamy", "차분하고 서정적인": "lyrical, calm", "우울하고 쓸쓸한": "melancholic", "밝고 희망찬": "joyful, uplifting", "에너지 넘치는": "energetic"}
-styles = {"선택안함": "", "실사 사진 (초고화질)": "photorealistic, 8k resolution", "수채화": "soft watercolor", "유화": "classic oil painting", "지브리 애니메이션 풍": "studio ghibli style", "신카이 마코토 풍": "makoto shinkai style", "픽사/디즈니 3D 풍": "3D render, pixar style", "빈티지 일러스트": "vintage illustration"}
-lightings = {"선택안함": "", "성스러운 빛": "god rays, volumetric lighting", "따스한 자연광": "natural sunlight", "눈부신 역광": "backlit, lens flare", "부드러운 스튜디오 조명": "soft studio lighting", "어두운 밤": "nighttime, soft moonlight", "화려한 네온사인": "vibrant neon lighting", "골든 아워 (노을빛)": "golden hour lighting"}
-colors = {"선택안함": "", "황금빛 톤": "golden color palette", "따뜻한 웜톤": "warm color palette", "차가운 쿨톤": "cool color palette", "흑백 / 모노톤": "black and white", "부드러운 파스텔": "soft pastel colors", "빈티지": "vintage colors"}
-cameras = {"선택안함": "", "클로즈업": "extreme close-up shot", "바스트 샷": "medium shot", "전신 샷": "full body shot", "풍경 위주": "wide landscape shot", "로우 앵글": "low angle shot", "하이 앵글": "high angle shot", "드론 뷰": "bird's eye view"}
-times = {"선택안함": "", "이른 새벽": "early dawn", "밝은 아침": "bright morning", "화창한 정오": "midday", "늦은 오후": "late afternoon", "해질녘 (골든아워)": "sunset", "푸른 저녁 (블루아워)": "blue hour", "깊은 밤 (자정)": "midnight"}
-weathers = {"선택안함": "", "맑고 쾌청한": "clear weather", "구름이 예쁜 날": "fluffy white clouds", "비 내리는": "raining", "눈 내리는": "snowing", "안개 낀": "thick fog", "흩날리는 벚꽃잎": "falling cherry blossom petals", "무지개가 뜬 날": "beautiful rainbow"}
-eras = {"선택안함": "", "현대 / 도심": "modern day", "근미래 / 사이버펑크": "futuristic, cyberpunk city", "90년대 / Y2K": "1990s retro aesthetic", "80년대": "1980s aesthetic", "중세 판타지": "medieval fantasy world", "빅토리아 시대": "victorian era"}
-effects = {"선택안함": "", "필름 노이즈": "heavy film grain", "빛 번짐": "lens flare", "아웃포커싱": "shallow depth of field", "세피아 필터": "sepia filter", "빛바랜 폴라로이드": "polaroid effect"}
-
-# ==========================================
-# ⚙️ 시간 변환 및 분석 유틸리티
-# ==========================================
 def parse_time_to_sec(time_str):
     try:
         time_str = time_str.strip()
@@ -76,8 +67,7 @@ def parse_time_to_sec(time_str):
         if ":" in time_str:
             m, s = time_str.split(":")
             return int(m) * 60 + int(s)
-        else:
-            return int(time_str)
+        else: return int(time_str)
     except: return -1
 
 def find_highlights_lite(duration_sec, num_highlights=0): 
@@ -109,12 +99,12 @@ def analyze_audio_start(audio_clip):
     except: return default_start
 
 # ==========================================
-# 🖼️ 하이브리드 이미지/제목 생성 함수 (업로드 OR AI 생성)
+# 🖼️ 이미지 렌더링 & 제목 디자인 함수
 # ==========================================
-def create_cover_image(prompt, width, height, title_text, output_path, seed, custom_img_file=None):
-    if custom_img_file is not None:
-        # 사용자 업로드 이미지 처리
-        img = Image.open(custom_img_file).convert("RGBA")
+def create_designed_image(width, height, prompt, seed, custom_file, title_kr, title_en, font_choice, title_size, y_pos_percent, line_spacing):
+    # 1. 배경 이미지 확보 (업로드 vs AI)
+    if custom_file is not None:
+        img = Image.open(custom_file).convert("RGBA")
         target_ratio = width / height
         img_ratio = img.width / img.height
         if img_ratio > target_ratio:
@@ -127,33 +117,50 @@ def create_cover_image(prompt, width, height, title_text, output_path, seed, cus
             img = img.crop((0, top, img.width, top + new_h))
         img = img.resize((width, height), Image.Resampling.LANCZOS)
     else:
-        # AI 이미지 생성
         safe_prompt = re.sub(r'\s+', ' ', prompt).strip()
         encoded_prompt = urllib.parse.quote(safe_prompt)
         url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&seed={seed}"
-        headers = {'User-Agent': 'Mozilla/5.0'}
         try:
-            response = requests.get(url, headers=headers, timeout=30)
+            response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=30)
             response.raise_for_status()
-            with open(output_path, "wb") as f: f.write(response.content)
-            img = Image.open(output_path).convert("RGBA")
-        except Exception:
-            # AI 서버 에러 시 기본 다크 배경 생성
+            img_path = f"temp_ai_{seed}.jpg"
+            with open(img_path, "wb") as f: f.write(response.content)
+            img = Image.open(img_path).convert("RGBA")
+        except:
             img = Image.new("RGBA", (width, height), (35, 35, 40, 255))
             
-    # 🔥 이미지 위에 제목(Title) 쓰기
+    # 2. 텍스트 디자인 그리기
     draw = ImageDraw.Draw(img)
-    title_font_size = 45 if width == 1280 else 35
-    title_font = ImageFont.truetype(font_path, title_font_size)
-    x = width / 2
-    y = height * 0.15 # 상단 15% 위치에 고정
+    font_file = font_links[font_choice][0]
     
-    draw.multiline_text((x, y), title_text, font=title_font, fill="white", stroke_width=4, stroke_fill="black", align="center", anchor="ma")
-    img.convert("RGB").save(output_path)
+    font_kr = ImageFont.truetype(font_file, title_size)
+    font_en = ImageFont.truetype(font_file, int(title_size * 0.65)) # 영문은 한글의 65% 크기
+    
+    y_center = height * (y_pos_percent / 100.0)
+    
+    # 높이 계산
+    try:
+        h_kr = draw.textbbox((0,0), title_kr if title_kr else "A", font=font_kr)[3]
+        h_en = draw.textbbox((0,0), title_en if title_en else "A", font=font_en)[3]
+    except:
+        h_kr = title_size
+        h_en = int(title_size * 0.65)
+        
+    total_h = h_kr + (line_spacing if title_en else 0) + (h_en if title_en else 0)
+    start_y = y_center - (total_h / 2)
+    
+    if title_kr:
+        draw.text((width/2, start_y), title_kr, font=font_kr, fill="white", stroke_width=3, stroke_fill="black", anchor="ma")
+    if title_en:
+        draw.text((width/2, start_y + h_kr + line_spacing), title_en, font=font_en, fill="lightgray", stroke_width=2, stroke_fill="black", anchor="ma")
+        
+    out_path = f"final_img_{width}x{height}_{seed}.png"
+    img.convert("RGB").save(out_path)
     img.close()
+    return out_path
 
 # ==========================================
-# 🔥 1. 메인/틱톡 가사 스크롤 엔진 (순수 NumPy)
+# 🎬 비디오 렌더링 엔진 (메인/틱톡/쇼츠)
 # ==========================================
 def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path, logger, width, height, start_sec=0):
     base_img = Image.open(image_path).convert("RGB")
@@ -169,7 +176,6 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         clip.close()
         return
 
-    # 🌟 틱톡(세로)일 경우 폰트 확대 & 하단 스크롤
     if width == 720 and height == 1280:
         lyric_font_size = 24  
         window_top = int(height * 0.60) 
@@ -177,16 +183,14 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         lyric_font_size = 22  
         window_top = int(height * 0.40) 
         
-    lyric_font = ImageFont.truetype(font_path, lyric_font_size)
+    lyric_font = ImageFont.truetype(font_links["나눔고딕 (깔끔/기본)"][0], lyric_font_size)
     line_spacing = 2.0
     
     try:
-        dummy_bbox = ImageDraw.Draw(Image.new("RGB", (10,10))).textbbox((0,0), "A", font=lyric_font)
-        line_height = dummy_bbox[3] - dummy_bbox[1]
-    except:
-        line_height = lyric_font_size
+        h_dummy = ImageDraw.Draw(Image.new("RGB",(10,10))).textbbox((0,0), "A", font=lyric_font)[3]
+    except: h_dummy = lyric_font_size
         
-    step_y = line_height * line_spacing
+    step_y = h_dummy * line_spacing
     total_text_height = int(len(lines) * step_y)
     
     window_bottom = int(height * 0.95) 
@@ -197,27 +201,23 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     draw_long = ImageDraw.Draw(long_lyrics_img)
     
     for i, line in enumerate(lines):
-        lyric_y = window_height + (i * step_y)
-        draw_long.text((width / 2, lyric_y), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", align="center", anchor="ma")
+        draw_long.text((width / 2, window_height + (i * step_y)), line, font=lyric_font, fill="white", stroke_width=2, stroke_fill="black", anchor="ma")
 
     long_lyrics_np = np.array(long_lyrics_img)
     long_lyrics_img.close()
 
     fade_mask = np.ones((window_height, width, 1), dtype=np.float32)
     fade_height = int(window_height * 0.4) 
-    for y in range(fade_height):
-        fade_mask[y, :, 0] = y / fade_height
-    for y in range(window_height - fade_height, window_height):
-        fade_mask[y, :, 0] = (window_height - y) / fade_height
+    for y in range(fade_height): fade_mask[y, :, 0] = y / fade_height
+    for y in range(window_height - fade_height, window_height): fade_mask[y, :, 0] = (window_height - y) / fade_height
 
     bg_slice = base_img_np[window_top:window_bottom, :, :].astype(np.float32)
 
     def make_frame(t):
         if t < start_sec: progress = 0.0 
         else:
-            scroll_duration = duration - start_sec
-            if scroll_duration <= 0: progress = 1.0
-            else: progress = min(1.0, max(0.0, (t - start_sec) / scroll_duration))
+            scroll_dur = duration - start_sec
+            progress = 1.0 if scroll_dur <= 0 else min(1.0, max(0.0, (t - start_sec) / scroll_dur))
             
         viewport_y = int(progress * (window_height + total_text_height))
         src_np = long_lyrics_np[viewport_y : viewport_y + window_height, :, :]
@@ -232,16 +232,13 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
     video_clip.write_videofile(output_path, fps=10, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
     video_clip.close()
 
-# ==========================================
-# 🔥 2. 쇼츠 전용 초경량 엔진 
-# ==========================================
 def generate_static_video(image_path, audio_clip, output_path, logger):
     clip = ImageClip(image_path).set_duration(audio_clip.duration).set_audio(audio_clip)
     clip.write_videofile(output_path, fps=2, codec="libx264", audio_codec="aac", audio_fps=44100, preset="ultrafast", threads=1, logger=logger)
     clip.close()
 
 # ==========================================
-# 🚀 유튜브 예약 및 다이렉트 업로드 함수
+# 🚀 유튜브 업로드 함수
 # ==========================================
 def upload_to_youtube(video_path, title, description, tags, privacy_status, publish_at=None):
     try:
@@ -249,317 +246,314 @@ def upload_to_youtube(video_path, title, description, tags, privacy_status, publ
         from googleapiclient.http import MediaFileUpload
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
-    except ImportError:
-        return False, "구글 API 라이브러리가 없습니다."
+    except ImportError: return False, "구글 API 라이브러리가 없습니다."
 
     if not os.path.exists("token.json"): return False, "token.json 파일이 없습니다."
-
     creds = Credentials.from_authorized_user_file("token.json", ["https://www.googleapis.com/auth/youtube.upload"])
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
             with open("token.json", "w") as token: token.write(creds.to_json())
-        else:
-            return False, "토큰이 만료되었거나 유효하지 않습니다."
+        else: return False, "토큰이 만료되었거나 유효하지 않습니다."
 
     try:
         youtube = build("youtube", "v3", credentials=creds)
-        body = {
-            "snippet": {
-                "title": title,
-                "description": description,
-                "tags": [t.strip() for t in tags.split(",") if t.strip()],
-                "categoryId": "10" 
-            },
-            "status": {"privacyStatus": privacy_status}
-        }
+        body = {"snippet": {"title": title, "description": description, "tags": [t.strip() for t in tags.split(",") if t.strip()], "categoryId": "10"}, "status": {"privacyStatus": privacy_status}}
         if publish_at: body["status"]["publishAt"] = publish_at
-
         media = MediaFileUpload(video_path, chunksize=-1, resumable=True)
         request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
         response = request.execute()
         return True, f"🎉 업로드 성공! 링크: https://youtu.be/{response.get('id')}"
-    except Exception as e:
-        return False, f"업로드 중 오류 발생: {e}"
+    except Exception as e: return False, f"업로드 중 오류 발생: {e}"
 
 # ==========================================
-# 🖥️ 사이드바 & 파일 업로드 UI 구성
+# 🖥️ 앱 UI 및 탭 구성
 # ==========================================
-st.sidebar.header("1. 기본 설정 (음원/가사)")
-uploaded_audio = st.sidebar.file_uploader("🎧 음원 파일 (WAV, MP3)", type=['wav', 'mp3'])
-lyrics = st.sidebar.text_area("📝 가사 입력 (메인 및 틱톡 풀영상 스크롤 적용)", height=150)
-sync_start = st.sidebar.text_input("⏱️ 시작 싱크 (예: 00:15)", placeholder="비워두면 AI가 맞춥니다.")
+tab1, tab2, tab3 = st.tabs(["📝 1. 수노(Suno) 가사/프롬프트 생성", "🖼️ 2. 이미지 팩토리 (커스텀 디자인)", "🎬 3. 비디오 렌더링 & 업로드"])
 
-st.sidebar.divider()
-st.sidebar.header("2. 영상 생성 항목 및 배경 업로드")
-st.sidebar.info("💡 이미지를 업로드하지 않으면 AI가 자동으로 생성합니다.")
-
-generate_main = st.sidebar.checkbox("📺 유튜브 메인 (가로 16:9) 생성", value=True)
-uploaded_main_img = None
-if generate_main:
-    uploaded_main_img = st.sidebar.file_uploader("📺 가로 메인용 배경 (선택)", type=['jpg', 'jpeg', 'png'])
-
-generate_tiktok = st.sidebar.checkbox("📱 틱톡 풀영상 (세로 9:16) 생성", value=False)
-uploaded_tiktok_img = None
-if generate_tiktok:
-    uploaded_tiktok_img = st.sidebar.file_uploader("📱 틱톡 풀영상 전용 배경 (선택)", type=['jpg', 'jpeg', 'png'])
-
-num_shorts = st.sidebar.slider("✂️ 하이라이트 쇼츠 (가사X) 개수", min_value=0, max_value=4, value=0)
-uploaded_shorts_imgs = []
-if num_shorts > 0:
-    for i in range(num_shorts):
-        upl = st.sidebar.file_uploader(f"✂️ 쇼츠 {i+1} 전용 배경 (선택)", type=['jpg', 'jpeg', 'png'], key=f"short_upload_{i}")
-        uploaded_shorts_imgs.append(upl)
-
-# ==========================================
-# 🎨 앨범 커버 AI 초정밀 연출 옵션 (부활)
-# ==========================================
-st.header("🎨 AI 앨범 커버 자동 생성 옵션")
-st.write("이미지를 직접 업로드하지 않은 영상은 아래 설정에 맞춰 AI가 그려줍니다.")
-subject = st.text_input("🎯 메인 주제/사물 (선택)", placeholder="예: 창밖을 바라보는 고양이 (영어로 쓰면 더 정확합니다)")
-
-col_g1, col_g2 = st.columns(2)
-with col_g1: pop_choice = st.selectbox("🎧 대중음악 장르 (CCM 선택 시 무시됨)", list(pop_genres.keys()))
-with col_g2: ccm_choice = st.selectbox("⛪ CCM 장르", list(ccm_genres.keys()))
-
-col1, col2 = st.columns(2)
-with col1:
-    mood_choice = st.selectbox("✨ 분위기", list(moods.keys()))
-    style_choice = st.selectbox("🖌️ 그림 스타일", list(styles.keys()))
-with col2:
-    light_choice = st.selectbox("💡 조명 느낌", list(lightings.keys()))
-    color_choice = st.selectbox("🌈 색감", list(colors.keys()))
-
-with st.expander("🎬 디테일 연출 설정 (선택사항)"):
-    col3, col4 = st.columns(2)
-    with col3:
-        camera_choice = st.selectbox("🎥 카메라 앵글", list(cameras.keys()))
-        time_choice = st.selectbox("⏰ 시간대", list(times.keys()))
-        weather_choice = st.selectbox("☁️ 날씨", list(weathers.keys()))
-    with col4:
-        era_choice = st.selectbox("🏰 배경 시대", list(eras.keys()))
-        effect_choice = st.selectbox("✨ 특수효과", list(effects.keys()))
-
-# ==========================================
-# 🚀 렌더링 시작 및 실시간 모니터링
-# ==========================================
-if st.button("🚀 비디오 렌더링 시작", use_container_width=True):
-    if uploaded_audio is None:
-        st.error("⚠️ 음원 파일을 업로드해주세요.")
-    elif not generate_main and not generate_tiktok and num_shorts == 0:
-        st.error("⚠️ 최소 하나 이상의 영상을 생성하도록 선택해주세요.")
-    else:
-        status_box = st.container()
-        with status_box:
-            st.markdown("### 📡 실시간 작업 모니터링")
-            step_title = st.empty()
-            progress_bar = st.progress(0)
-            progress_text = st.empty()
-
-        try:
-            st.session_state.main_video_path = ""
-            st.session_state.tiktok_video_path = ""
-            st.session_state.shorts_paths = []
-            st.session_state.is_completed = False
-            
-            base_name = os.path.splitext(uploaded_audio.name)[0]
-            display_title = f"{base_name.split('_')[0]}\n{base_name.split('_')[1]}" if '_' in base_name else base_name
-            st.session_state.base_name = base_name
-            
-            final_clean_lyrics = re.sub(r'\[.*?\]', '', lyrics)
-            st.session_state.clean_lyrics = final_clean_lyrics 
-
-            # AI 프롬프트 생성
-            selected_genre = ccm_genres[ccm_choice] if ccm_choice != "선택안함" else pop_genres[pop_choice]
-            prompt_parts = [
-                subject, selected_genre, moods[mood_choice], styles[style_choice], 
-                lightings[light_choice], colors[color_choice], cameras[camera_choice],
-                times[time_choice], weathers[weather_choice], eras[era_choice], effects[effect_choice],
-                "masterpiece", "best quality", "4k resolution"
-            ]
-            final_prompt = ", ".join([p for p in prompt_parts if p])
-
-            step_title.markdown("#### 🎵 음원 분석 및 준비 중...")
-            audio_path = "temp_audio.wav"
-            with open(audio_path, "wb") as f: f.write(uploaded_audio.getbuffer())
-            
-            full_audio = AudioFileClip(audio_path)
-            audio_duration = full_audio.duration
-            
-            manual_start = parse_time_to_sec(sync_start)
-            if manual_start >= 0:
-                final_start_sec = manual_start
-                st.toast(f"✅ 사용자 설정: {int(final_start_sec)}초 부터 가사가 올라옵니다.")
-            else:
-                final_start_sec = analyze_audio_start(full_audio)
-                st.toast(f"🤖 AI 분석 완료: {int(final_start_sec)}초 부터 가사가 올라옵니다.")
-
-            # [작업 1] 메인 영상 렌더링
-            if generate_main:
-                step_title.markdown(f"#### 🎬 [1단계] 유튜브 메인 영상(16:9) 렌더링 중...")
-                main_img_path = "temp_main_img.jpg"
-                create_cover_image(final_prompt, 1280, 720, display_title, main_img_path, seed=123, custom_img_file=uploaded_main_img)
-                
-                main_video_path = "output_main_video.mp4"
-                main_logger = StreamlitProgressLogger(progress_bar, progress_text, "메인 영상")
-                generate_video_with_lyrics(main_img_path, full_audio, final_clean_lyrics, main_video_path, main_logger, 1280, 720, start_sec=final_start_sec)
-                
-                st.session_state.main_video_path = main_video_path 
-                del main_logger; gc.collect() 
-
-            # [작업 2] 틱톡 풀영상 렌더링
-            if generate_tiktok:
-                step_title.markdown(f"#### 📱 [2단계] 틱톡 풀영상(9:16) 렌더링 중...")
-                tiktok_img_path = "temp_tiktok_img.jpg"
-                create_cover_image(final_prompt, 720, 1280, display_title, tiktok_img_path, seed=456, custom_img_file=uploaded_tiktok_img)
-                
-                tiktok_video_path = "output_tiktok_video.mp4"
-                tiktok_logger = StreamlitProgressLogger(progress_bar, progress_text, "틱톡 영상")
-                generate_video_with_lyrics(tiktok_img_path, full_audio, final_clean_lyrics, tiktok_video_path, tiktok_logger, 720, 1280, start_sec=final_start_sec)
-                
-                st.session_state.tiktok_video_path = tiktok_video_path 
-                del tiktok_logger; gc.collect()
-
-            # [작업 3] 쇼츠 추출 및 렌더링
-            if num_shorts > 0:
-                progress_bar.progress(0)
-                progress_text.empty()
-                step_title.markdown("#### 🔍 [3단계] 쇼츠 추출 구간 계산 중...")
-                highlight_times = find_highlights_lite(audio_duration, num_shorts)
-                
-                for i, start_time in enumerate(highlight_times):
-                    progress_bar.progress(0)
-                    step_title.markdown(f"#### ✂️ [4단계] 하이라이트 쇼츠 {i+1}/{num_shorts} 제작 중...")
-                    
-                    shorts_img_path = f"temp_shorts_img_{i}.jpg"
-                    create_cover_image(final_prompt, 720, 1280, display_title, shorts_img_path, seed=random.randint(1000, 9999), custom_img_file=uploaded_shorts_imgs[i])
-                    
-                    short_dur = min(random.randint(35, 55), audio_duration - start_time)
-                    if short_dur < 5: short_dur = 5 
-                    
-                    sub_audio = full_audio.subclip(start_time, start_time + short_dur)
-                    fade_dur = min(1.5, short_dur / 3.0)
-                    sub_audio = sub_audio.fx(afx.audio_fadein, fade_dur).fx(afx.audio_fadeout, fade_dur)
-                    
-                    temp_wav_path = f"temp_short_{i}.wav"
-                    sub_audio.write_audiofile(temp_wav_path, fps=44100, logger=None)
-                    
-                    fresh_audio = AudioFileClip(temp_wav_path)
-                    shorts_video_path = f"output_shorts_{i+1}.mp4"
-                    shorts_logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
-                    
-                    generate_static_video(shorts_img_path, fresh_audio, shorts_video_path, shorts_logger)
-                    
-                    fresh_audio.close()
-                    if os.path.exists(temp_wav_path): os.remove(temp_wav_path)
-                        
-                    st.session_state.shorts_paths.append(shorts_video_path)
-                    del shorts_logger, fresh_audio, sub_audio; gc.collect() 
-
-            full_audio.close()
-            st.session_state.is_completed = True
-            step_title.markdown("#### ✨ 모든 작업 완료! 아래에서 확인하세요.")
-
-        except Exception as e:
-            st.error(f"오류가 발생했습니다: {e}")
-
-# ==========================================
-# 🎉 완료 화면 및 다운로드 / 유튜브 업로드
-# ==========================================
-if st.session_state.is_completed:
-    st.divider()
+# ------------------------------------------
+# TAB 1: 수노 가사/프롬프트 생성
+# ------------------------------------------
+with tab1:
+    st.header("📝 수노(Suno AI) 메타태그 & 가사 생성기")
+    st.write("Suno AI에 입력할 스타일 프롬프트와 가사 구조를 쉽게 짜보세요.")
     
-    valid_files_exist = False
-    if st.session_state.main_video_path and os.path.exists(st.session_state.main_video_path): valid_files_exist = True
-    if st.session_state.tiktok_video_path and os.path.exists(st.session_state.tiktok_video_path): valid_files_exist = True
-    for p in st.session_state.shorts_paths:
-        if os.path.exists(p): valid_files_exist = True
+    col1, col2 = st.columns(2)
+    with col1:
+        suno_genre = st.text_input("🎸 장르/스타일 (예: K-pop, Acoustic Ballad, CCM Worship)")
+        suno_mood = st.text_input("✨ 분위기 (예: emotional, uplifting, holy)")
+        suno_voice = st.selectbox("🎤 보컬 스타일", ["male vocal", "female vocal", "choir", "duet"])
+    
+    st.info(f"💡 **Suno Style Prompt 추천:**\n\n`{suno_genre}, {suno_mood}, {suno_voice}`")
+    
+    st.subheader("가사 에디터 (메타태그 삽입)")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    if c1.button("[Intro] 추가"): st.session_state.suno_lyrics = st.session_state.get('suno_lyrics', '') + "\n[Intro]\n"
+    if c2.button("[Verse] 추가"): st.session_state.suno_lyrics = st.session_state.get('suno_lyrics', '') + "\n[Verse]\n"
+    if c3.button("[Chorus] 추가"): st.session_state.suno_lyrics = st.session_state.get('suno_lyrics', '') + "\n[Chorus]\n"
+    if c4.button("[Bridge] 추가"): st.session_state.suno_lyrics = st.session_state.get('suno_lyrics', '') + "\n[Bridge]\n"
+    if c5.button("[Outro] 추가"): st.session_state.suno_lyrics = st.session_state.get('suno_lyrics', '') + "\n[Outro]\n"
+    
+    suno_lyrics = st.text_area("여기에 가사를 작성하고 Suno AI에 복사하세요.", value=st.session_state.get('suno_lyrics', ''), height=300)
+    st.session_state.suno_lyrics = suno_lyrics
+
+# ------------------------------------------
+# TAB 2: 이미지 팩토리
+# ------------------------------------------
+with tab2:
+    st.header("🖼️ 이미지 팩토리 (제목 디자인 & 다운로드)")
+    st.write("수노에서 만든 음원을 올리면 제목이 자동 파싱됩니다. 이미지를 커스텀하고 다운로드하세요.")
+    
+    uploaded_audio = st.file_uploader("🎧 수노 음원 업로드 (필수, WAV/MP3)", type=['wav', 'mp3'])
+    
+    if uploaded_audio:
+        # 파일 임시 저장 및 제목 파싱
+        audio_path = "temp_factory_audio.wav"
+        with open(audio_path, "wb") as f: f.write(uploaded_audio.getbuffer())
+        st.session_state.audio_path = audio_path
+        
+        base_name = os.path.splitext(uploaded_audio.name)[0]
+        st.session_state.base_name = base_name
+        
+        parts = base_name.split('_')
+        st.session_state.title_kr = parts[0] if len(parts) > 0 else base_name
+        st.session_state.title_en = parts[1] if len(parts) > 1 else ""
+        
+    col_t1, col_t2 = st.columns(2)
+    with col_t1: title_kr = st.text_input("📌 한글 제목 (Title 1)", value=st.session_state.title_kr)
+    with col_t2: title_en = st.text_input("📌 영문 제목 (Title 2)", value=st.session_state.title_en)
+    
+    st.divider()
+    st.subheader("🎨 제목 디자인 옵션")
+    col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+    with col_d1: font_choice = st.selectbox("폰트 스타일", list(font_links.keys()))
+    with col_d2: title_size = st.slider("폰트 크기 (메인 기준)", 30, 150, 70)
+    with col_d3: y_pos_percent = st.slider("Y축 위치 (%) - 50이 정중앙", 0, 100, 20)
+    with col_d4: line_spacing = st.slider("한글/영문 줄간격", 0, 50, 15)
+    
+    st.divider()
+    st.subheader("🖼️ 생성할 이미지 설정 (AI 프롬프트 OR 직접 업로드)")
+    ai_prompt = st.text_input("🤖 AI 이미지 프롬프트 (업로드 파일이 없으면 이걸로 그립니다)", "beautiful sunlight, cinematic landscape, masterpiece")
+    
+    col_i1, col_i2, col_i3 = st.columns(3)
+    with col_i1:
+        gen_main = st.checkbox("📺 메인 (가로 16:9)", value=True)
+        img_up_main = st.file_uploader("메인 배경 업로드 (선택)", type=['jpg','png'])
+    with col_i2:
+        gen_tiktok = st.checkbox("📱 틱톡 (세로 9:16)", value=False)
+        img_up_tiktok = st.file_uploader("틱톡 배경 업로드 (선택)", type=['jpg','png'])
+    with col_i3:
+        num_shorts = st.slider("✂️ 쇼츠 이미지 (세로) 개수", 0, 6, 0)
+        img_up_shorts = []
+        for i in range(num_shorts):
+            img_up_shorts.append(st.file_uploader(f"쇼츠 {i+1} 배경 (선택)", type=['jpg','png'], key=f"s_img_{i}"))
+
+    if st.button("✨ 이미지 생성 및 디자인 적용", type="primary", use_container_width=True):
+        if not uploaded_audio: st.error("음원 파일을 먼저 업로드해주세요!")
+        else:
+            with st.spinner("이미지를 생성하고 제목을 디자인하는 중입니다..."):
+                if gen_main:
+                    path = create_designed_image(1280, 720, ai_prompt, 111, img_up_main, title_kr, title_en, font_choice, title_size, y_pos_percent, line_spacing)
+                    st.session_state.img_main = path
+                if gen_tiktok:
+                    # 세로는 폰트크기 자동비례 조정 (약 75%)
+                    path = create_designed_image(720, 1280, ai_prompt, 222, img_up_tiktok, title_kr, title_en, font_choice, int(title_size*0.75), y_pos_percent, line_spacing)
+                    st.session_state.img_tiktok = path
+                
+                st.session_state.img_shorts = []
+                for i in range(num_shorts):
+                    path = create_designed_image(720, 1280, ai_prompt, 333+i, img_up_shorts[i], title_kr, title_en, font_choice, int(title_size*0.75), y_pos_percent, line_spacing)
+                    st.session_state.img_shorts.append(path)
+                    
+            st.success("🎉 이미지 디자인 완료! 아래에서 확인하고 다운로드하세요.")
             
-    if not valid_files_exist:
-        st.error("🚨 서버 메모리 부족으로 생성된 파일이 유실되었습니다. 새로고침 후 다시 시도해주세요.")
-        st.session_state.is_completed = False
-    else:
-        st.success("🎉 요청하신 영상 렌더링이 성공적으로 완료되었습니다!")
+    # 이미지 결과 및 다운로드 버튼 표시
+    if st.session_state.img_main or st.session_state.img_tiktok or st.session_state.img_shorts:
+        st.subheader("📥 완성된 이미지 미리보기 & 다운로드")
+        res_cols = st.columns(3)
+        col_idx = 0
+        
+        if st.session_state.img_main:
+            with res_cols[col_idx % 3]:
+                st.image(st.session_state.img_main, caption="📺 메인 이미지 (16:9)")
+                with open(st.session_state.img_main, "rb") as f:
+                    st.download_button("⬇️ 메인 다운로드", f, file_name=f"{title_kr}_Main.png", mime="image/png")
+            col_idx += 1
+            
+        if st.session_state.img_tiktok:
+            with res_cols[col_idx % 3]:
+                st.image(st.session_state.img_tiktok, caption="📱 틱톡 이미지 (9:16)")
+                with open(st.session_state.img_tiktok, "rb") as f:
+                    st.download_button("⬇️ 틱톡 다운로드", f, file_name=f"{title_kr}_TikTok.png", mime="image/png")
+            col_idx += 1
+            
+        for i, s_path in enumerate(st.session_state.img_shorts):
+            with res_cols[col_idx % 3]:
+                st.image(s_path, caption=f"✂️ 쇼츠 {i+1} 이미지 (9:16)")
+                with open(s_path, "rb") as f:
+                    st.download_button(f"⬇️ 쇼츠 {i+1} 다운로드", f, file_name=f"{title_kr}_Short_{i+1}.png", mime="image/png", key=f"dl_s_{i}")
+            col_idx += 1
+
+# ------------------------------------------
+# TAB 3: 비디오 렌더링 & 업로드
+# ------------------------------------------
+with tab3:
+    st.header("🎬 비디오 렌더링 & 다이렉트 업로드")
+    st.write("2단계에서 만들어진 이미지를 바탕으로 영상을 제작합니다.")
+    
+    lyrics_input = st.text_area("📝 스크롤용 가사 입력 (메인/틱톡 적용, [] 자동삭제)", height=150)
+    sync_start = st.text_input("⏱️ 스크롤 시작 싱크 (예: 00:15)", placeholder="비워두면 AI가 맞춥니다.")
+    
+    if st.button("🚀 비디오 팩토리 가동", type="primary", use_container_width=True):
+        if not st.session_state.audio_path: st.error("2단계 탭에서 음원 파일을 업로드해주세요.")
+        elif not (st.session_state.img_main or st.session_state.img_tiktok or st.session_state.img_shorts):
+            st.error("2단계 탭에서 먼저 이미지를 생성해주세요.")
+        else:
+            status_box = st.container()
+            with status_box:
+                st.markdown("### 📡 렌더링 모니터링")
+                step_title = st.empty()
+                progress_bar = st.progress(0)
+                progress_text = st.empty()
+
+            try:
+                st.session_state.main_video_path = ""
+                st.session_state.tiktok_video_path = ""
+                st.session_state.shorts_paths = []
+                st.session_state.is_completed = False
+                
+                final_clean_lyrics = re.sub(r'\[.*?\]', '', lyrics_input)
+                st.session_state.clean_lyrics = final_clean_lyrics 
+                
+                full_audio = AudioFileClip(st.session_state.audio_path)
+                audio_dur = full_audio.duration
+                
+                manual_start = parse_time_to_sec(sync_start)
+                if manual_start >= 0: final_start_sec = manual_start
+                else: final_start_sec = analyze_audio_start(full_audio)
+
+                # 메인 비디오
+                if st.session_state.img_main:
+                    step_title.markdown(f"#### 🎬 [1단계] 메인 영상 렌더링 중...")
+                    v_path = "output_main.mp4"
+                    logger = StreamlitProgressLogger(progress_bar, progress_text, "메인 영상")
+                    generate_video_with_lyrics(st.session_state.img_main, full_audio, final_clean_lyrics, v_path, logger, 1280, 720, final_start_sec)
+                    st.session_state.main_video_path = v_path
+                    del logger; gc.collect()
+
+                # 틱톡 비디오
+                if st.session_state.img_tiktok:
+                    step_title.markdown(f"#### 📱 [2단계] 틱톡 풀영상 렌더링 중...")
+                    v_path = "output_tiktok.mp4"
+                    logger = StreamlitProgressLogger(progress_bar, progress_text, "틱톡 영상")
+                    generate_video_with_lyrics(st.session_state.img_tiktok, full_audio, final_clean_lyrics, v_path, logger, 720, 1280, final_start_sec)
+                    st.session_state.tiktok_video_path = v_path
+                    del logger; gc.collect()
+
+                # 쇼츠 비디오
+                num_s = len(st.session_state.img_shorts)
+                if num_s > 0:
+                    step_title.markdown("#### 🔍 [3단계] 쇼츠 추출 구간 계산 중...")
+                    h_times = find_highlights_lite(audio_dur, num_s)
+                    
+                    for i, s_time in enumerate(h_times):
+                        step_title.markdown(f"#### ✂️ 하이라이트 쇼츠 {i+1}/{num_s} 제작 중...")
+                        dur = min(random.randint(35, 55), audio_dur - s_time)
+                        if dur < 5: dur = 5
+                        
+                        sub_audio = full_audio.subclip(s_time, s_time + dur)
+                        fade = min(1.5, dur / 3.0)
+                        sub_audio = sub_audio.fx(afx.audio_fadein, fade).fx(afx.audio_fadeout, fade)
+                        
+                        temp_wav = f"temp_short_{i}.wav"
+                        sub_audio.write_audiofile(temp_wav, fps=44100, logger=None)
+                        fresh_audio = AudioFileClip(temp_wav)
+                        
+                        v_path = f"output_short_{i+1}.mp4"
+                        logger = StreamlitProgressLogger(progress_bar, progress_text, f"쇼츠 {i+1}")
+                        generate_static_video(st.session_state.img_shorts[i], fresh_audio, v_path, logger)
+                        
+                        fresh_audio.close()
+                        if os.path.exists(temp_wav): os.remove(temp_wav)
+                        st.session_state.shorts_paths.append(v_path)
+                        del logger, fresh_audio, sub_audio; gc.collect()
+
+                full_audio.close()
+                st.session_state.is_completed = True
+                step_title.markdown("#### ✨ 모든 영상 렌더링 완료!")
+
+            except Exception as e: st.error(f"오류 발생: {e}")
+
+    # 결과 및 유튜브 업로드
+    if st.session_state.is_completed:
+        st.divider()
+        st.success("🎉 모든 영상이 성공적으로 생성되었습니다!")
         
         tab_names = []
         if st.session_state.main_video_path: tab_names.append("📺 메인 영상")
         if st.session_state.tiktok_video_path: tab_names.append("📱 틱톡 풀영상")
         for i in range(len(st.session_state.shorts_paths)): tab_names.append(f"✂️ 쇼츠 {i+1}")
             
-        tabs = st.tabs(tab_names)
+        v_tabs = st.tabs(tab_names)
         
-        tab_idx = 0
+        t_idx = 0
         if st.session_state.main_video_path:
-            with tabs[tab_idx]:
+            with v_tabs[t_idx]:
                 st.video(st.session_state.main_video_path)
-                with open(st.session_state.main_video_path, "rb") as file:
-                    st.download_button("⬇️ 메인 영상 다운로드 (.mp4)", data=file, file_name=f"{st.session_state.base_name}_Main.mp4", mime="video/mp4", use_container_width=True)
-            tab_idx += 1
-            
+                with open(st.session_state.main_video_path, "rb") as f:
+                    st.download_button("⬇️ 메인 영상 다운로드", f, file_name=f"{st.session_state.base_name}_Main.mp4", mime="video/mp4")
+            t_idx += 1
         if st.session_state.tiktok_video_path:
-            with tabs[tab_idx]:
+            with v_tabs[t_idx]:
                 st.video(st.session_state.tiktok_video_path)
-                with open(st.session_state.tiktok_video_path, "rb") as file:
-                    st.download_button("⬇️ 틱톡 풀영상 다운로드 (.mp4)", data=file, file_name=f"{st.session_state.base_name}_TikTok.mp4", mime="video/mp4", use_container_width=True)
-            tab_idx += 1
-                
-        for i, shorts_path in enumerate(st.session_state.shorts_paths):
-            with tabs[tab_idx]:
-                st.video(shorts_path)
-                with open(shorts_path, "rb") as file:
-                    st.download_button(f"⬇️ 쇼츠 {i+1} 다운로드 (.mp4)", data=file, file_name=f"{st.session_state.base_name}_Shorts_{i+1}.mp4", mime="video/mp4", use_container_width=True)
-            tab_idx += 1
+                with open(st.session_state.tiktok_video_path, "rb") as f:
+                    st.download_button("⬇️ 틱톡 영상 다운로드", f, file_name=f"{st.session_state.base_name}_TikTok.mp4", mime="video/mp4")
+            t_idx += 1
+        for i, path in enumerate(st.session_state.shorts_paths):
+            with v_tabs[t_idx]:
+                st.video(path)
+                with open(path, "rb") as f:
+                    st.download_button(f"⬇️ 쇼츠 {i+1} 다운로드", f, file_name=f"{st.session_state.base_name}_Short_{i+1}.mp4", mime="video/mp4")
+            t_idx += 1
 
         st.divider()
         st.header("🚀 유튜브 다이렉트 업로드")
         
-        col_f1, col_f2 = st.columns(2)
-        with col_f1: client_file = st.file_uploader("🔑 client_secrets.json 업로드", type=['json'])
-        with col_f2: token_file = st.file_uploader("🎫 token.json 업로드 (PC에서 생성한 파일)", type=['json'])
+        c_f1, c_f2 = st.columns(2)
+        with c_f1: client_file = st.file_uploader("🔑 client_secrets.json", type=['json'])
+        with c_f2: token_file = st.file_uploader("🎫 token.json", type=['json'])
 
         if client_file and token_file:
             with open("client_secrets.json", "wb") as f: f.write(client_file.getbuffer())
             with open("token.json", "wb") as f: f.write(token_file.getbuffer())
                 
-            upload_options = {}
-            if st.session_state.main_video_path and os.path.exists(st.session_state.main_video_path):
-                upload_options["📺 메인 영상 (가로)"] = st.session_state.main_video_path
-            if st.session_state.tiktok_video_path and os.path.exists(st.session_state.tiktok_video_path):
-                upload_options["📱 틱톡 풀영상 (세로)"] = st.session_state.tiktok_video_path
-            for i, p in enumerate(st.session_state.shorts_paths):
-                if os.path.exists(p): upload_options[f"✂️ 쇼츠 {i+1} (세로)"] = p
+            upload_opts = {}
+            if st.session_state.main_video_path: upload_opts["📺 메인 영상"] = st.session_state.main_video_path
+            if st.session_state.tiktok_video_path: upload_opts["📱 틱톡 영상"] = st.session_state.tiktok_video_path
+            for i, p in enumerate(st.session_state.shorts_paths): upload_opts[f"✂️ 쇼츠 {i+1}"] = p
                 
-            if upload_options:
-                selected_vid_key = st.selectbox("📌 업로드할 영상 선택", list(upload_options.keys()))
-                selected_vid_path = upload_options[selected_vid_key]
-                yt_title = st.text_input("📝 영상 제목", value=f"[{st.session_state.base_name}] 은혜로운 찬양 플레이리스트")
-                ccm_desc_template = f"""할렐루야! 오늘 함께 나눌 찬양은 '{st.session_state.base_name}' 입니다. 🌿\n\n지치고 상한 마음, 예배의 자리를 사모하는 모든 분들께 이 찬양이 작은 위로와 평안이 되기를 소망합니다.\n가사를 묵상하며 주님의 크신 사랑과 은혜를 깊이 경험하는 귀한 시간 되시길 기도합니다. \n\n항상 주님 안에서 승리하시고, 오늘 하루도 말씀과 기도로 나아가는 복된 하루 되세요! 🙏\n\n🔔 구독과 좋아요는 은혜로운 찬양을 나누는 데 큰 힘이 됩니다. 💖\n\n#CCM #찬양 #예배 #은혜 #위로 #기도 #기독교 #교회 #찬양추천 #플레이리스트"""
-                yt_desc = st.text_area("📜 영상 설명", value=ccm_desc_template, height=300)
-                ccm_tags = "CCM, 찬양, 예배, 은혜, 기독교, 교회, 찬송가, 워십, 복음성가, 기도, 묵상, 힐링찬양, 위로, 평안, 찬양추천, 플레이리스트, worship, praise, 주일예배, 특송, 은혜로운찬양, 아침찬양, 수면찬양"
-                yt_tags = st.text_input("🏷️ 검색 태그 (쉼표로 구분)", value=ccm_tags)
-                privacy_ui = st.selectbox("🔒 공개 상태", ["비공개 (Private)", "일부 공개 (Unlisted)", "공개 (Public)", "예약 업로드 (Scheduled)"])
+            if upload_opts:
+                sel_vid_key = st.selectbox("📌 업로드할 영상 선택", list(upload_opts.keys()))
+                sel_vid_path = upload_opts[sel_vid_key]
+                yt_title = st.text_input("📝 영상 제목", value=f"[{st.session_state.title_kr}] 은혜로운 찬양")
+                yt_desc = st.text_area("📜 영상 설명", value="할렐루야! 은혜로운 찬양입니다.\n#CCM #찬양", height=150)
+                yt_tags = st.text_input("🏷️ 태그", value="CCM, 찬양, 예배")
+                privacy_ui = st.selectbox("🔒 상태", ["비공개", "일부 공개", "공개", "예약 업로드"])
                 
-                upload_date = None; upload_time = None
-                if privacy_ui == "예약 업로드 (Scheduled)":
-                    st.info("💡 예약 시간은 반드시 '현재 시각보다 미래'여야 합니다.")
-                    col_d, col_t = st.columns(2)
-                    with col_d: upload_date = st.date_input("🗓️ 날짜 선택")
-                    with col_t: upload_time = st.time_input("⏰ 한국 시간(KST) 기준 시간 선택")
+                up_d = None; up_t = None
+                if privacy_ui == "예약 업로드":
+                    cd, ct = st.columns(2)
+                    with cd: up_d = st.date_input("🗓️ 날짜")
+                    with ct: up_t = st.time_input("⏰ KST 시간")
                 
-                if st.button("🔥 유튜브 채널로 전송", type="primary"):
-                    with st.spinner("유튜브 서버로 안전하게 업로드 중입니다... (수 분 소요됨)"):
-                        privacy_map = {"비공개 (Private)": "private", "일부 공개 (Unlisted)": "unlisted", "공개 (Public)": "public", "예약 업로드 (Scheduled)": "private"}
-                        final_privacy = privacy_map[privacy_ui]
-                        final_publish_at = None
-                        if privacy_ui == "예약 업로드 (Scheduled)":
-                            kst_tz = timezone(timedelta(hours=9))
-                            dt_kst = datetime.combine(upload_date, upload_time, tzinfo=kst_tz)
-                            dt_utc = dt_kst.astimezone(timezone.utc)
-                            final_publish_at = dt_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
+                if st.button("🔥 유튜브로 전송", type="primary"):
+                    with st.spinner("업로드 중입니다..."):
+                        p_map = {"비공개":"private", "일부 공개":"unlisted", "공개":"public", "예약 업로드":"private"}
+                        pub_at = None
+                        if privacy_ui == "예약 업로드":
+                            dt_utc = datetime.combine(up_d, up_t, tzinfo=timezone(timedelta(hours=9))).astimezone(timezone.utc)
+                            pub_at = dt_utc.strftime("%Y-%m-%dT%H:%M:%S.0Z")
                             
-                        success, msg = upload_to_youtube(selected_vid_path, yt_title, yt_desc, yt_tags, final_privacy, publish_at=final_publish_at)
-                        if success:
-                            st.success(msg)
-                            st.balloons()
+                        success, msg = upload_to_youtube(sel_vid_path, yt_title, yt_desc, yt_tags, p_map[privacy_ui], pub_at)
+                        if success: st.success(msg); st.balloons()
                         else: st.error(msg)
-        else: st.warning("위 2개의 인증 파일을 모두 업로드해야 버튼이 나타납니다.")
