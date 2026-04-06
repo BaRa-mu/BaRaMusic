@@ -50,7 +50,8 @@ def parse_time_to_sec(time_str):
 
 def extract_eng(text):
     if "(" in text and ")" in text: 
-        return text.split("(")[1].replace(")", "").strip()
+        return text.split("(")[1].replace(")", "").
+strip()
     return text.strip()
 
 def design_and_save_image(width, height, prompt, seed, title_kr, title_en, font_choice, title_size, y_pos_percent, line_spacing, output_path, custom_file=None):

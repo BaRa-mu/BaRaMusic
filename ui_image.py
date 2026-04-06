@@ -11,7 +11,8 @@ def render_tab2():
     if aud_parsing:
         base = os.path.splitext(aud_parsing.name)[0]
         parts = base.split('_')
-        t_kr = parts[0]; t_en = parts[1] if len(parts) > 1 else ""
+        t_kr = parts[0]
+        t_en = parts[1] if len(parts) > 1 else ""
         
     c1, c2 = st.columns(2)
     with c1: t_kr = st.text_input("📌 한글 제목", value=t_kr)
@@ -27,9 +28,11 @@ def render_tab2():
     
     col_i1, col_i2, col_i3 = st.columns(3)
     with col_i1:
-        gen_m = st.checkbox("📺 메인(16:9)", value=True); up_m = st.file_uploader("메인 배경", type=['jpg','png'])
+        gen_m = st.checkbox("📺 메인(16:9)", value=True)
+        up_m = st.file_uploader("메인 배경", type=['jpg','png'])
     with col_i2:
-        gen_t = st.checkbox("📱 틱톡(9:16)", value=False); up_t = st.file_uploader("틱톡 배경", type=['jpg','png'])
+        gen_t = st.checkbox("📱 틱톡(9:16)", value=False)
+        up_t = st.file_uploader("틱톡 배경", type=['jpg','png'])
     with col_i3:
         num_s = st.slider("✂️ 쇼츠(9:16)", 0, 6, 0)
         up_s = [st.file_uploader(f"쇼츠 {i+1} 배경", type=['jpg','png'], key=f"img_up_{i}") for i in range(num_s)]
@@ -41,13 +44,21 @@ def render_tab2():
         st.success("✅ 이미지 생성 완료!")
 
     if st.session_state.get('res_m') or st.session_state.get('res_t') or st.session_state.get('res_s'):
-        st.divider(); cols = st.columns(3); idx = 0
+        st.divider()
+        cols = st.columns(3)
+        idx = 0
         if st.session_state.get('res_m'):
-            with cols[idx%3]: st.image(st.session_state.res_m); st.download_button("⬇️ 가로 다운", open(st.session_state.res_m, "rb"), "Main.png")
+            with cols[idx%3]: 
+                st.image(st.session_state.res_m)
+                st.download_button("⬇️ 가로 다운", open(st.session_state.res_m, "rb"), "Main.png")
             idx+=1
         if st.session_state.get('res_t'):
-            with cols[idx%3]: st.image(st.session_state.res_t); st.download_button("⬇️ 틱톡 다운", open(st.session_state.res_t, "rb"), "TikTok.png")
+            with cols[idx%3]: 
+                st.image(st.session_state.res_t)
+                st.download_button("⬇️ 틱톡 다운", open(st.session_state.res_t, "rb"), "TikTok.png")
             idx+=1
         for i, p in enumerate(st.session_state.get('res_s', [])):
-            with cols[idx%3]: st.image(p); st.download_button(f"⬇️ 쇼츠{i+1} 다운", open(p, "rb"), f"Short_{i+1}.png")
+            with cols[idx%3]: 
+                st.image(p)
+                st.download_button(f"⬇️ 쇼츠{i+1} 다운", open(p, "rb"), f"Short_{i+1}.png")
             idx+=1

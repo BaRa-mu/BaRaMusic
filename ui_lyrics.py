@@ -13,7 +13,9 @@ def render_tab1():
     with col2: s_ccm = st.selectbox("⛪ CCM", utils.suno_ccm_list)
 
     if st.button("🚀 수노 전용 풀버전 생성", type="primary", use_container_width=True):
-        if not user_api_key or not subject: st.error("키와 주제를 입력하세요."); return
+        if not user_api_key or not subject: 
+            st.error("키와 주제를 입력하세요.")
+            return
         genai.configure(api_key=user_api_key)
         
         try:
@@ -30,17 +32,23 @@ def render_tab1():
                 for m_name in valid_models:
                     try:
                         model = genai.GenerativeModel(m_name)
-                        res = model.generate_content(query); res_text = res.text; break
-                    except: continue
+                        res = model.generate_content(query)
+                        res_text = res.text
+                        break
+                    except: 
+                        continue
                 
-                if not res_text: st.error("생성 실패."); return
+                if not res_text: 
+                    st.error("생성 실패.")
+                    return
                 
                 st.session_state.gen_title_kr = res_text.split("[TITLE_KR]")[1].split("[TITLE_EN]")[0].strip().replace('"','')
                 st.session_state.gen_title_en = res_text.split("[TITLE_EN]")[1].split("[PROMPT]")[0].strip().replace('"','')
                 st.session_state.gen_prompt = res_text.split("[PROMPT]")[1].split("[LYRICS]")[0].strip().replace("\n"," ")[:995]
                 st.session_state.gen_lyrics = res_text.split("[LYRICS]")[1].strip()
                 st.success("✅ 생성 완료!")
-        except Exception as e: st.error(f"오류: {e}")
+        except Exception as e: 
+            st.error(f"오류: {e}")
 
     if st.session_state.get('gen_title_kr'):
         st.divider()
