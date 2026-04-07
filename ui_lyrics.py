@@ -20,7 +20,7 @@ def render_tab1():
     st.markdown("""
         <style>
         /* 위젯 사이의 적절한 간격 확보 (답답함 해소) */
-        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 8px !important; }
+        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 5px !important; }
         
         /* 드롭다운 박스 높이 32px 유지 및 내부 정렬 */
         div[data-baseweb="select"] > div, .stTextInput input {
@@ -35,7 +35,7 @@ def render_tab1():
         }
 
         /* 라디오 버튼 간격 표준화 */
-        div[role="radiogroup"] { gap: 15px !important; margin-top: 2px !important; }
+        div[role="radiogroup"] { gap: 10px !important; margin-top: 2px !important; }
         
         /* 결과창 가시성 증대 */
         .stCode { margin-top: 0px !important; border: 1px solid #e6e9ef !important; }
