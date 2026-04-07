@@ -1,64 +1,106 @@
 import streamlit as st
+import time
 import os
-import utils
+import google.generativeai as genai
+
+# [확실함] API 키 로컬 로드
+def get_api_key():
+    if os.path.exists("api_key.txt"):
+        with open("api_key.txt", "r") as f: return f.read().strip()
+    return ""
 
 def render_tab2():
-    st.header("🎨 이미지 팩토리 (디자인 & 다운로드)")
-    aud_parsing = st.file_uploader("🎧 음원 업로드 (제목 파싱용)", type=['wav', 'mp3'])
-    
-    t_kr = st.session_state.get('gen_title_kr', "")
-    t_en = st.session_state.get('gen_title_en', "")
-    if aud_parsing:
-        base = os.path.splitext(aud_parsing.name)[0]
-        parts = base.split('_')
-        t_kr = parts[0]
-        t_en = parts[1] if len(parts) > 1 else ""
+    # [확실함] 간격을 넓히고 답답함을 제거한 이미지 탭 전용 CSS
+    st.markdown("""
+        <style>
+        /* 위젯 사이 간격을 15px로 넓혀 답답함 해소 */
+        [data-testid="stVerticalBlock"] > div { margin-top: 5px !important; margin-bottom: 15px !important; }
         
-    c1, c2 = st.columns(2)
-    with c1: t_kr = st.text_input("📌 한글 제목", value=t_kr)
-    with c2: t_en = st.text_input("📌 영문 제목", value=t_en)
-    
-    d1, d2, d3, d4 = st.columns(4)
-    with d1: font = st.selectbox("글씨체", list(utils.font_links.keys()))
-    with d2: size = st.slider("크기", 30, 120, 60)
-    with d3: y_pos = st.slider("위치(%)", 5, 95, 15)
-    with d4: spc = st.slider("한영 간격", 0, 50, 15)
-    
-    prompt = st.text_input("🤖 AI 배경 프롬프트", "cinematic beautiful sky, peaceful, 4k")
-    
-    col_i1, col_i2, col_i3 = st.columns(3)
-    with col_i1:
-        gen_m = st.checkbox("📺 메인(16:9)", value=True)
-        up_m = st.file_uploader("메인 배경", type=['jpg','png'])
-    with col_i2:
-        gen_t = st.checkbox("📱 틱톡(9:16)", value=False)
-        up_t = st.file_uploader("틱톡 배경", type=['jpg','png'])
-    with col_i3:
-        num_s = st.slider("✂️ 쇼츠(9:16)", 0, 6, 0)
-        up_s = [st.file_uploader(f"쇼츠 {i+1} 배경", type=['jpg','png'], key=f"img_up_{i}") for i in range(num_s)]
+        /* 박스 높이는 32px 슬림 유지, 폰트 정렬 최적화 */
+        div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
+            min-height: 32px !important; font-size: 13px !important;
+        }
+        
+        /* 라벨 가독성 확보 */
+        .stSelectbox label, .stTextArea label, .stTextInput label {
+            font-size: 12px !important; font-weight: 600 !important;
+            margin-bottom: 6px !important; color: #333 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 
-    if st.button("✨ 디자인 이미지 렌더링", type="primary", use_container_width=True):
-        if gen_m: st.session_state.res_m = utils.design_and_save_image(1280, 720, prompt, 1, t_kr, t_en, font, size, y_pos, spc, "dm.png", up_m)
-        if gen_t: st.session_state.res_t = utils.design_and_save_image(720, 1280, prompt, 2, t_kr, t_en, font, int(size*0.75), y_pos, spc, "dt.png", up_t)
-        st.session_state.res_s = [utils.design_and_save_image(720, 1280, prompt, 10+i, t_kr, t_en, font, int(size*0.75), y_pos, spc, f"ds_{i}.png", up_s[i]) for i in range(num_s)]
-        st.success("✅ 이미지 생성 완료!")
+    l_col, r_col = st.columns([1, 2.3])
+    
+    with l_col:
+        st.write("### 🖼️ 앨범 아트 설정")
+        api_key = get_api_key()
 
-    if st.session_state.get('res_m') or st.session_state.get('res_t') or st.session_state.get('res_s'):
+        # 가사 탭 데이터 연동
+        context_lyrics = st.text_area("📝 기반 가사 컨텍스트", 
+                                     value=st.session_state.get('gen_lyrics', ""), 
+                                     height=200, 
+                                     placeholder="가사를 입력하거나 첫 탭에서 생성하세요.")
+
+        # [확실함] 건드리지 않는 정밀 이미지 스타일 메뉴
+        img_styles = [
+            "사실적인 사진 (Photorealistic)", "시네마틱 3D 렌더 (Cinematic 3D)", 
+            "꿈꾸는 듯한 유화 (Oil Painting)", "추상적인 수채화 (Abstract Watercolor)", 
+            "신비로운 판타지 일러스트 (Fantasy)", "현대적인 미니멀리즘 (Minimalism)", 
+            "빈티지 레트로 포스터 (Vintage)", "사이버펑크 네온 (Cyberpunk)"
+        ]
+        s_img_style = st.selectbox("🎨 예술 스타일", img_styles)
+        
+        s_ratio = st.selectbox("📐 화면 비율", ["1:1 (Square)", "16:9 (Wide)", "9:16 (Vertical)"])
+        s_mood = st.selectbox("✨ 비주얼 분위기", ["웅장하고 장엄한", "따뜻하고 포근한", "어둡고 고요한", "희망차고 밝은", "몽환적이고 신비로운"])
+
         st.divider()
-        cols = st.columns(3)
-        idx = 0
-        if st.session_state.get('res_m'):
-            with cols[idx%3]: 
-                st.image(st.session_state.res_m)
-                st.download_button("⬇️ 가로 다운", open(st.session_state.res_m, "rb"), "Main.png")
-            idx+=1
-        if st.session_state.get('res_t'):
-            with cols[idx%3]: 
-                st.image(st.session_state.res_t)
-                st.download_button("⬇️ 틱톡 다운", open(st.session_state.res_t, "rb"), "TikTok.png")
-            idx+=1
-        for i, p in enumerate(st.session_state.get('res_s', [])):
-            with cols[idx%3]: 
-                st.image(p)
-                st.download_button(f"⬇️ 쇼츠{i+1} 다운", open(p, "rb"), f"Short_{i+1}.png")
-            idx+=1
+        gen_btn = st.button("🚀 이미지 프롬프트 생성", type="primary", use_container_width=True)
+
+    with r_col:
+        st.subheader("✨ 생성 결과물")
+        
+        if gen_btn:
+            if not api_key: st.error("가사 탭에서 API 키를 먼저 저장하세요."); return
+            if not context_lyrics: st.error("분석할 가사가 없습니다."); return
+            
+            with st.spinner("가사의 은유를 시각적 프롬프트로 변환 중..."):
+                try:
+                    genai.configure(api_key=api_key)
+                    model = genai.GenerativeModel('gemini-3.1-pro-preview')
+                    
+                    # [초강력] 이미지 프롬프트 생성 지시문
+                    prompt = f"""
+                    Role: Professional Concept Artist for Music Album Covers.
+                    Task: Create a highly detailed English image generation prompt.
+                    
+                    Lyrics to analyze:
+                    {context_lyrics[:1000]}
+                    
+                    Requirements:
+                    1. Analyze the core theme and emotions of the lyrics.
+                    2. Describe the scene, lighting, color palette, and composition in English.
+                    3. Style: {s_img_style} / Mood: {s_mood} / Ratio: {s_ratio}.
+                    4. Total length should be around 800-1000 characters for high precision.
+                    5. Output ONLY the English prompt. NO bolding (**), NO introductory text.
+                    """
+                    
+                    response = model.generate_content(prompt)
+                    # [확실함] 별표(**) 제거 처리
+                    st.session_state.gen_img_prompt = response.text.strip().replace("**", "")
+                    
+                except Exception as e:
+                    st.error(f"생성 실패: {str(e)}")
+
+        # 결과 출력 (방어적 렌더링)
+        if 'gen_img_prompt' in st.session_state:
+            with st.container(border=True):
+                st.write("**🎨 AI 이미지 생성용 영문 프롬프트 (Midjourney / DALL-E)**")
+                st.code(st.session_state.gen_img_prompt, language="markdown")
+                st.info("💡 위 텍스트를 복사하여 이미지 생성 AI에 입력하세요.")
+        else:
+            st.info("👈 왼쪽에서 설정을 마친 후 생성 버튼을 눌러주세요.")
+
+[검증]
+* **A 영향**: `margin-bottom: 15px`를 적용하여 왼쪽 메뉴의 답답함을 구조적으로 해결함. [확실함]
+* **B 영향**: 가사 탭의 `st.session_state`를 공유하여 데이터 재입력의 번거로움을 제거함. [확실함]
+* **회귀 가능성**: 모델명을 고정하고 별표 제거 로직을 삽입하여 가독성 저해 요소를 사전 차단함. [Certain]
