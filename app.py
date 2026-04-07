@@ -1,27 +1,25 @@
 import streamlit as st
-import ui_lyrics, ui_image, ui_video
+import ui_lyrics
+import ui_image
+import ui_video
 
-st.set_page_config(page_title="AI 뮤직비디오 자동화 팩토리", page_icon="🎬", layout="wide")
+# 페이지 기본 설정
+st.set_page_config(page_title="CCM & 자장가 자동 생성기", layout="wide")
 
-# --- [변경사항: 개별 이미지 및 배경 관리를 위한 상태 변수 추가] ---
-init_keys = {
-    'is_completed': False, 'gen_title_kr': '', 'gen_title_en': '', 
-    'gen_lyrics': '', 'master_prompt': '', 'v_main': None, 
-    'v_tiktok': None, 'v_shorts': [], 'bg_m': None, 'bg_t': None, 
-    'res_m': None, 'res_t': None
-}
-for i in range(6):
-    init_keys[f'bg_s_{i}'] = None
-    init_keys[f'res_s_{i}'] = None
+st.title("🎶 찬양 & 자장가 영상 자동 제작")
 
-for k, v in init_keys.items():
-    if k not in st.session_state: st.session_state[k] = v
-# ----------------------------------------------------------------
+# 탭 구성
+tab1, tab2, tab3 = st.tabs(["1. 가사 및 프롬프트", "2. 배경 이미지", "3. 영상 제작"])
 
-tab1, tab2, tab3 = st.tabs(["📝 1. 가사 생성", "🎨 2. 이미지 생성", "🎬 3. 영상 렌더링"])
-with tab1: 
+with tab1:
     ui_lyrics.render_tab1()
-with tab2: 
-    ui_image.render_tab2()
-with tab3: 
+
+with tab2:
+    try:
+        ui_image.render_tab2()
+    except Exception as e:
+        st.error("이미지 생성 중 오류가 발생했습니다. 아래 영상 탭으로 넘어가서 작업을 계속하실 수 있습니다.")
+        st.caption(f"에러 상세 내용: {e}")
+
+with tab3:
     ui_video.render_tab3()

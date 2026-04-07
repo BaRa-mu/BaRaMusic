@@ -2,54 +2,25 @@ import streamlit as st
 import utils
 
 def render_tab1():
-    # --- [변경사항: 구글 API 키 제거 및 무료 연동 UI 구축] ---
-    st.header("📝 수노(Suno AI) 완벽 프롬프트 생성기 (무료 연동)")
-    subject = st.text_input("🎯 곡의 주제/메시지 (예: 지친 하루의 위로, 십자가의 사랑)")
+    st.header("📝 곡 정보 및 가사 생성")
+    st.write("원하시는 주제나 분위기를 입력하면 제목, 이미지 프롬프트, 가사를 한 번에 생성합니다.")
     
-    col1, col2 = st.columns(2)
-    with col1: s_pop = st.selectbox("🎧 대중음악", utils.suno_pop_list)
-    with col2: s_ccm = st.selectbox("⛪ CCM", utils.suno_ccm_list)
-
-    col3, col4, col5, col6 = st.columns(4)
-    with col3: s_mood = st.selectbox("✨ 분위기", utils.suno_moods_list)
-    with col4: s_tempo = st.selectbox("🎵 템포", utils.suno_tempo_list)
-    with col5: s_inst = st.selectbox("🎸 악기", utils.suno_inst_list)
-    with col6: s_vocal = st.selectbox("🎤 보컬", utils.suno_vocals_list)
-
-    if st.button("🚀 프롬프트 생성 및 무료 AI 연결", type="primary", use_container_width=True):
-        if not subject: 
-            st.error("주제를 입력하세요.")
-            return
+    theme = st.text_input("주제 입력 (예: 밤에 듣기 좋은 평안한 CCM 자장가)", "평안한 밤을 위한 은혜로운 CCM 자장가")
+    
+    if st.button("✨ 자동 생성하기", type="primary"):
+        with st.spinner("제목, 프롬프트, 가사를 생성하고 있습니다..."):
+            # utils.py의 AI 생성 함수 호출
+            title, prompt, lyrics = utils.generate_all_text(theme)
             
-        style_parts = []
-        if s_pop != '선택안함': style_parts.append(f"Genre: {s_pop}")
-        if s_ccm != '선택안함': style_parts.append(f"CCM: {s_ccm}")
-        if s_mood != '선택안함': style_parts.append(f"Mood: {s_mood}")
-        if s_tempo != '선택안함': style_parts.append(f"Tempo: {s_tempo}")
-        if s_inst != '선택안함': style_parts.append(f"Instruments: {s_inst}")
-        if s_vocal != '선택안함': style_parts.append(f"Vocals: {s_vocal}")
-        style_prompt = ", ".join(style_parts) if style_parts else "Any style"
-        
-        prompt_text = f"""You are a professional award-winning lyricist. 
-Topic: {subject}
-Style: {style_prompt}
+            # 세션 상태에 저장하여 화면에 유지
+            st.session_state.title = title
+            st.session_state.prompt = prompt
+            st.session_state.lyrics = lyrics
 
-Output EXACTLY 4 sections with these tags: [TITLE_KR], [TITLE_EN], [PROMPT], [LYRICS].
-Prompt must be English, 800-1000 chars, extremely detailed. 
-Lyrics must be long, deep Korean poetry with structure tags like [Verse], [Chorus]."""
+    # 생성된 데이터가 있으면 수정 및 복사 가능한 텍스트 박스로 출력
+    if "title" in st.session_state:
+        st.subheader("📌 생성 결과 (자유롭게 수정/복사하세요)")
         
-        st.session_state.master_prompt = prompt_text
-        st.success("✅ 완벽한 프롬프트가 생성되었습니다. 아래 텍스트를 복사하여 무료 AI에 붙여넣으세요.")
-
-    if st.session_state.get('master_prompt'):
-        st.code(st.session_state.master_prompt, language="markdown")
-        
-        st.divider()
-        st.subheader("🔗 무료 AI 서비스로 이동 (복사한 프롬프트를 붙여넣으세요)")
-        col_a, col_b, col_c = st.columns(3)
-        with col_a: st.link_button("🤖 ChatGPT (무료)", "https://chatgpt.com", use_container_width=True)
-        with col_b: st.link_button("🧠 Claude (무료)", "https://claude.ai", use_container_width=True)
-        with col_c: st.link_button("🎵 Suno AI (음악 생성)", "https://suno.com", use_container_width=True)
-        
-        st.info("💡 외부 AI에서 생성된 결과물에서 제목([TITLE_KR], [TITLE_EN])과 가사([LYRICS])를 복사하여 다음 단계에서 활용하십시오.")
-    # ---------------------------------------------------------------------------------
+        st.text_input("🎵 제목", st.session_state.title, key="edit_title")
+        st.text_area("🎨 이미지 프롬프트", st.session_state.prompt, key="edit_prompt", height=100)
+        st.text_area("🎤 가사", st.session_state.lyrics, key="edit_lyrics", height=300)
