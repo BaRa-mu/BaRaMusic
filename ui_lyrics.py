@@ -2,25 +2,39 @@ import streamlit as st
 import utils
 
 def render_tab1():
-    st.header("📝 곡 정보 및 가사 생성")
-    st.write("원하시는 주제나 분위기를 입력하면 제목, 이미지 프롬프트, 가사를 한 번에 생성합니다.")
+    st.header("📝 가사 및 프롬프트 기획")
     
-    theme = st.text_input("주제 입력 (예: 밤에 듣기 좋은 평안한 CCM 자장가)", "평안한 밤을 위한 은혜로운 CCM 자장가")
-    
-    if st.button("✨ 자동 생성하기", type="primary"):
-        with st.spinner("제목, 프롬프트, 가사를 생성하고 있습니다..."):
-            # utils.py의 AI 생성 함수 호출
-            title, prompt, lyrics = utils.generate_all_text(theme)
+    with st.form("lyrics_detail_form"):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            genre = st.selectbox("음악 장르", ["CCM", "자장가", "워십", "클래식", "국악"])
+            mood = st.selectbox("곡의 분위기", ["평안한", "웅장한", "슬픈", "밝은", "잔잔한"])
+        with col2:
+            target = st.selectbox("청취 대상", ["전체", "아기", "지친 영혼", "환우", "청년"])
+            tempo = st.selectbox("템포", ["매우 느리게", "느리게", "보통", "약간 빠르게"])
+        with col3:
+            language = st.selectbox("언어", ["한국어", "영어", "한국어/영어 혼용"])
+            verse_count = st.slider("절 구성", 1, 4, 2)
             
-            # 세션 상태에 저장하여 화면에 유지
+        keywords = st.text_input("핵심 키워드 (쉼표 구분)", "은혜, 안식, 주님")
+        theme_details = st.text_area("상세 주제 내용", "고단한 하루를 마치고 주님 안에서 참된 평안을 얻는 밤")
+        
+        submit_btn = st.form_submit_button("✨ 곡 정보 생성 (제목/가사/프롬프트)", type="primary")
+
+    if submit_btn:
+        with st.spinner("AI가 상세 기획안을 작성 중입니다..."):
+            # 입력값 취합
+            query = f"{genre} {mood} {target} {tempo} {language} {verse_count}절 키워드:{keywords} 주제:{theme_details}"
+            title, prompt, lyrics = utils.generate_all_text(query)
+            
             st.session_state.title = title
             st.session_state.prompt = prompt
             st.session_state.lyrics = lyrics
 
-    # 생성된 데이터가 있으면 수정 및 복사 가능한 텍스트 박스로 출력
+    # 결과물 출력 (바로 복사 가능하도록 구성)
     if "title" in st.session_state:
-        st.subheader("📌 생성 결과 (자유롭게 수정/복사하세요)")
-        
-        st.text_input("🎵 제목", st.session_state.title, key="edit_title")
-        st.text_area("🎨 이미지 프롬프트", st.session_state.prompt, key="edit_prompt", height=100)
-        st.text_area("🎤 가사", st.session_state.lyrics, key="edit_lyrics", height=300)
+        st.divider()
+        st.subheader("📌 생성된 기획안 (수정/복사 가능)")
+        st.text_input("🎵 최종 제목", st.session_state.title)
+        st.text_area("🎨 이미지 생성용 프롬프트", st.session_state.prompt, height=80)
+        st.text_area("🎤 전체 가사", st.session_state.lyrics, height=350)
