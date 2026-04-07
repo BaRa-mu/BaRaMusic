@@ -47,18 +47,22 @@ def render_tab2():
         st.divider()
         cols = st.columns(3)
         idx = 0
-        if st.session_state.get('res_m'):
+        if st.session_state.get('res_m') and os.path.exists(st.session_state.res_m):
             with cols[idx%3]: 
                 st.image(st.session_state.res_m)
-                st.download_button("⬇️ 가로 다운", open(st.session_state.res_m, "rb"), "Main.png")
+                with open(st.session_state.res_m, "rb") as f:
+                    st.download_button("⬇️ 가로 다운", f.read(), "Main.png", key="dl_m")
             idx+=1
-        if st.session_state.get('res_t'):
+        if st.session_state.get('res_t') and os.path.exists(st.session_state.res_t):
             with cols[idx%3]: 
                 st.image(st.session_state.res_t)
-                st.download_button("⬇️ 틱톡 다운", open(st.session_state.res_t, "rb"), "TikTok.png")
+                with open(st.session_state.res_t, "rb") as f:
+                    st.download_button("⬇️ 틱톡 다운", f.read(), "TikTok.png", key="dl_t")
             idx+=1
         for i, p in enumerate(st.session_state.get('res_s', [])):
-            with cols[idx%3]: 
-                st.image(p)
-                st.download_button(f"⬇️ 쇼츠{i+1} 다운", open(p, "rb"), f"Short_{i+1}.png")
-            idx+=1
+            if os.path.exists(p):
+                with cols[idx%3]: 
+                    st.image(p)
+                    with open(p, "rb") as f:
+                        st.download_button(f"⬇️ 쇼츠{i+1} 다운", f.read(), f"Short_{i+1}.png", key=f"dl_s_{i}")
+                idx+=1

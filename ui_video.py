@@ -61,16 +61,20 @@ def render_tab3():
         st.subheader("📦 결과물 다운로드")
         z_buf = io.BytesIO()
         with zipfile.ZipFile(z_buf, "w") as zf:
-            if st.session_state.get('v_main'): zf.write(st.session_state.v_main, "Main.mp4")
-            if st.session_state.get('v_tiktok'): zf.write(st.session_state.v_tiktok, "TikTok.mp4")
-            for i, p in enumerate(st.session_state.get('v_shorts', [])): zf.write(p, f"Short_{i+1}.mp4")
+            for key, arcname in [('v_main', "Main.mp4"), ('v_tiktok', "TikTok.mp4")]:
+                path = st.session_state.get(key)
+                if path and os.path.exists(path):
+                    zf.write(path, arcname)
+            for i, p in enumerate(st.session_state.get('v_shorts', [])):
+                if os.path.exists(p):
+                    zf.write(p, f"Short_{i+1}.mp4")
         st.download_button("🎁 전체 영상 ZIP 다운로드", z_buf.getvalue(), "All_Videos.zip", type="primary", use_container_width=True)
 
         tabs = st.tabs(["📺 메인", "📱 틱톡"] + [f"✂️ 쇼츠 {i+1}" for i in range(len(st.session_state.get('v_shorts', [])))])
         with tabs[0]: 
-            if st.session_state.get('v_main'): st.video(st.session_state.v_main)
+            if st.session_state.get('v_main') and os.path.exists(st.session_state.v_main): st.video(st.session_state.v_main)
         with tabs[1]:
-            if st.session_state.get('v_tiktok'): 
+            if st.session_state.get('v_tiktok') and os.path.exists(st.session_state.v_tiktok): 
                 col_v, _ = st.columns([1, 1.5])
                 col_v.video(st.session_state.v_tiktok)
         
