@@ -13,8 +13,8 @@ def render_tab2():
     st.markdown("""
         <style>
         [data-testid="stVerticalBlock"] > div { 
-            margin-top: 0px !important;    /* 위쪽 간격 */
-            margin-bottom: 2px !important;   /* 아래쪽 간격 */
+            margin-top: -10px !important;    /* 위쪽 간격 */
+            margin-bottom: 10px !important;   /* 아래쪽 간격 */
         }
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
             min-height: 32px !important; height: 32px !important; font-size: 13px !important;
