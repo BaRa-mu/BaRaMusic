@@ -22,7 +22,7 @@ def render_tab2():
         .stTextArea textarea { height: 120px !important; } /* 가사창 전용 높이 */
         .stSelectbox label, .stTextArea label, .stTextInput label, .stSlider label {
             font-size: 11px !important; font-weight: 600 !important;
-            margin-bottom: -10px !important; color: #444 !important; padding-top: 6px !important;
+            margin-bottom: -0px !important; color: #444 !important; padding-top: 6px !important;
         }
         </style>
     """, unsafe_allow_html=True)
