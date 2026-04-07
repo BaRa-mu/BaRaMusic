@@ -1,25 +1,43 @@
-import streamlit as st
+import st
 import os
 import random
 from PIL import Image, ImageDraw, ImageFont
 
-# --- [확실함] 1. 절대 유실 금지 데이터 (각 15종 이상 고정) --- [Certain]
-STYLE_LIST = ["사진", "시네마틱 3D", "유화", "수채화", "판타지", "미니멀", "빈티지", "사이버펑크", "초현실주의", "팝 아트", "잉크", "스팀펑크", "픽셀 아트", "고딕", "우키요에", "추상화", "네온 아트"]
+# --- 1. 절대 유실 금지 데이터 (각 15종 이상) [Certain] ---
+STYLE_LIST = ["사실적인 사진", "시네마틱 3D", "유화", "수채화", "판타지", "미니멀", "빈티지", "사이버펑크", "초현실주의", "팝 아트", "잉크", "스팀펑크", "픽셀 아트", "고딕", "우키요에", "추상화", "네온 아트"]
 LIGHT_LIST = ["자연광", "안개 조명", "네온 글로우", "시네마틱", "골든 아워", "달빛", "스튜디오", "역광", "에테르 빛", "촛불", "석양", "명암", "레이저", "보케", "고대비", "네온 라이트"]
-CAM_LIST = ["광각", "매크로", "아이 레벨", "조감도", "웜즈 아이", "클로즈업", "아웃포커싱", "딥 포커스", "어안 렌즈", "POV", "파노라마", "필름", "망원", "틸트-시프트", "핸드헬드"]
-KR_FONTS_LIST = ["나눔붓", "나눔펜", "상상꽃길", "배민연성", "교보손글씨", "나눔바른펜", "안동엄마", "상상신비", "이순신굵은", "배민한나", "제주한라산", "나눔라운드", "상상금도끼", "안성탕면", "tvN즐거운"]
-EN_FONTS_LIST = ["Great Vibes", "Dancing Script", "Pacifico", "Allura", "Sacramento", "Arizonia", "Pinyon Script", "Parisienne", "Cookie", "Kaushan Script", "Tangerine", "Clicker Script", "Playball", "Alex Brush", "Monsieur"]
+CAM_LIST = ["광각 렌즈", "매크로 접사", "아이 레벨", "조감도", "웜즈 아이", "클로즈업", "아웃포커싱", "딥 포커스", "어안 렌즈", "드론 POV", "파노라마", "필름 카메라", "망원 렌즈", "틸트-시프트", "핸드헬드"]
+KR_FONTS = ["나눔붓", "나눔펜", "상상꽃길", "배민연성", "교보손글씨", "나눔바른펜", "안동엄마", "상상신비", "이순신굵은", "배민한나", "제주한라산", "나눔라운드", "상상금도끼", "안성탕면", "tvN즐거운"]
+EN_FONTS = ["Great Vibes", "Dancing Script", "Pacifico", "Allura", "Sacramento", "Arizonia", "Pinyon Script", "Parisienne", "Cookie", "Kaushan Script", "Tangerine", "Clicker Script", "Playball", "Alex Brush", "Monsieur"]
+
+def get_font(size):
+    paths = ["/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf", "C:/Windows/Fonts/malgun.ttf", "/System/Library/Fonts/Supplemental/AppleGothic.ttf", "NanumGothicBold.ttf"]
+    for p in paths:
+        if os.path.exists(p): return ImageFont.truetype(p, size)
+    return ImageFont.load_default()
+
+def draw_overlay(width, height, kr_text, en_text, v_pos, kr_s, en_s, ls):
+    img = Image.new('RGB', (width, height), (55, 65, 55))
+    draw = ImageDraw.Draw(img)
+    f_kr, f_en = get_font(kr_s), get_font(en_s)
+    y_center = height * (v_pos / 100)
+    total_h = kr_s + ls + en_s
+    start_y = y_center - (total_h / 2)
+    # 한글(위) / 영어(아래) 줄바꿈 구조 유지 [Certain]
+    draw.text((width/2, start_y + (kr_s/2)), kr_text, font=f_kr, fill=(255,255,255), anchor="mm")
+    draw.text((width/2, start_y + kr_s + ls + (en_s/2)), en_text, font=f_en, fill=(210,210,210), anchor="mm")
+    return img
 
 def render_tab2():
-    # [수정] 겹치지 않는 범위 내 최소 간격 (안전 수치 -10px) [확실함]
+    # 간격 최소화 CSS (겹치지 않게 유지)
     st.markdown("""
         <style>
-        [data-testid="stVerticalBlock"] > div { margin-top: -10px !important; margin-bottom: 0px !important; }
+        [data-testid="stVerticalBlock"] > div { margin-top: -12px !important; margin-bottom: 0px !important; }
         .stSelectbox label, .stSlider label, .stTextInput label, .stTextArea label { 
-            margin-bottom: -5px !important; padding-top: 5px !important; font-size: 11px !important; font-weight: 600 !important;
+            margin-bottom: 0px !important; padding-top: 3px !important; font-size: 11px !important; font-weight: 600 !important;
         }
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
-            height: 30px !important; min-height: 30px !important; font-size: 13px !important;
+            height: 28px !important; min-height: 28px !important; font-size: 13px !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -28,8 +46,7 @@ def render_tab2():
     
     with l_col:
         st.write("### 🖼️ 이미지 상세 설정")
-        # 1. 업로드 및 파싱
-        aud_file = st.file_uploader("🎧 음원 업로드 (한글_영어.mp3)", type=['mp3', 'wav'])
+        aud_file = st.file_uploader("🎧 음원 업로드", type=['mp3', 'wav'])
         if aud_file:
             base = os.path.splitext(aud_file.name)[0]
             if "_" in base:
@@ -42,84 +59,56 @@ def render_tab2():
 
         st.divider()
         num_s = st.slider("✂️ 쇼츠 추가", 0, 5, 2, key="n_s")
-        # [기능 유지] 15종 전문 메뉴 [Certain]
-        st.selectbox("🎨 스타일", STYLE_LIST, key="s_st")
-        st.selectbox("💡 조명", LIGHT_LIST, key="s_li")
-        st.selectbox("📷 카메라", CAM_LIST, key="s_ca")
+        st.selectbox("🎨 예술 스타일", STYLE_LIST, key="s_st")
+        st.selectbox("💡 조명 효과", LIGHT_LIST, key="s_li")
+        st.selectbox("📷 카메라 앵글", CAM_LIST, key="s_ca")
 
         if st.button("🚀 이미지 생성 시작", type="primary", use_container_width=True):
             st.session_state.is_generated = True
-            st.session_state.imgs_data = [{"label": "메인 (16:9)", "w": 1280, "h": 720}] + \
-                                         [{"label": "틱톡 (9:16)", "w": 720, "h": 1280}] + \
+            st.session_state.imgs_data = [{"label": "메인 (16:9)", "w": 1280, "h": 720}, {"label": "틱톡 (9:16)", "w": 720, "h": 1280}] + \
                                          [{"label": f"쇼츠 {i+1}", "w": 720, "h": 1280} for i in range(num_s)]
 
     with r_col:
         if st.session_state.get('is_generated'):
             all_imgs = st.session_state.get('imgs_data', [])
             
-            # 1. 메인 이미지 (상단 배치)
+            # 1. 메인 이미지 (기존 레이아웃 유지: 이미지 왼쪽, 조절바 오른쪽)
             m_item = all_imgs[0]
             with st.container(border=True):
                 c_i, c_c = st.columns([1.5, 1])
                 with c_c:
                     st.write(f"**{m_item['label']}**")
-                    st.selectbox("한글 폰트", KR_FONTS_LIST, key="fk_0")
-                    st.selectbox("영어 폰트", EN_FONTS_LIST, key="fe_0")
-                    v_m = st.slider("위치 상하", 0, 100, 50, key="v_0")
-                    sk_m = st.slider("한글 크기", 10, 200, 60, key="sk_0")
-                    se_m = st.slider("영어 크기", 10, 200, 40, key=f"se_0")
-                    # [확실함] 줄 간격 조절 슬라이더 추가 [Certain]
-                    ls_m = st.slider("줄 간격", 1, 30, 10, key="ls_0")
+                    v_0 = st.slider("위치", 0, 100, 50, key="v_0")
+                    sk_0 = st.slider("한글 크기", 10, 200, 60, key="sk_0")
+                    se_0 = st.slider("영어 크기", 10, 200, 40, key="se_0")
+                    ls_0 = st.slider("줄 간격", 0, 100, 20, key="ls_0")
+                    st.selectbox("KR 폰트", KR_FONTS, key="fk_0")
+                    st.selectbox("EN 폰트", EN_FONTS, key="fe_0")
                 with c_i:
-                    # [확실함] 줄 간격 조절 엔진 고도화
-                    img = Image.new('RGB', (m_item['w'], m_item['h']), (60, 110, 60))
-                    draw = ImageDraw.Draw(img)
-                    y = m_item['h'] * (v_m/100)
-                    try: 
-                        f_kr = ImageFont.truetype("NanumGothicBold.ttf", sk_m)
-                        f_en = ImageFont.truetype("NanumGothicBold.ttf", se_m)
-                    except: 
-                        f_kr, f_en = ImageFont.load_default(), ImageFont.load_default()
-                    # 한글(위) / 영어(아래) 물리적 좌표 분리 출력
-                    # [Certain] 오프셋 계산: (한글 크기 + 영어 크기) / 2를 기본 행간으로 두고 조절
-                    leading_offset = (sk_m + se_m) / 2 * (ls_m / 10) # 1.0~3.0배 조절
-                    draw.text((m_item['w']/2, y - sk_m/2), t_kr, font=f_kr, fill=(255,255,255), anchor="mm")
-                    draw.text((m_item['w']/2, y + leading_offset), t_en, font=f_en, fill=(220,220,220), anchor="mm")
-                    st.image(img, use_column_width=True)
+                    st.image(draw_overlay(m_item['w'], m_item['h'], t_kr, t_en, v_0, sk_0, se_0, ls_0), use_column_width=True)
 
-            # 2. 세로 규격 (9:16) - 3열 콤팩트 배치 (사이즈 작게 줄임)
-            st.write("**📱 세로 규격 (9:16) - 3열 콤팩트**")
-            v_items = all_imgs[1:]
-            v_cols = st.columns(3) # 3열 그리드로 사이즈 대폭 축소
-            for idx, item in enumerate(v_items):
+            st.write("**📱 세로 규격 (9:16) - 콤팩트 배치**")
+            # 2. 세로 이미지 (3열 배치 / 조절바와 메뉴를 하단으로 이동) [Certain]
+            v_cols = st.columns(3)
+            for idx, item in enumerate(all_imgs[1:]):
                 r_idx = idx + 1
                 with v_cols[idx % 3]:
                     with st.container(border=True):
-                        # 실시간 조절 바
+                        # [A] 이미지 최상단 배치
+                        img_v = draw_overlay(item['w'], item['h'], t_kr, t_en, 
+                                             st.session_state.get(f"v_{r_idx}", 50), 
+                                             st.session_state.get(f"sk_{r_idx}", 45), 
+                                             st.session_state.get(f"se_{r_idx}", 30), 
+                                             st.session_state.get(f"ls_{r_idx}", 15))
+                        st.image(img_v, use_column_width=True)
+                        st.write(f"<p style='font-size:10px; text-align:center;'>{item['label']}</p>", unsafe_allow_html=True)
+                        
+                        # [A] 조절바와 메뉴를 모두 하단으로 이동
                         v = st.slider("V", 0, 100, 50, key=f"v_{r_idx}", label_visibility="collapsed")
                         sk = st.slider("KR", 10, 200, 45, key=f"sk_{r_idx}", label_visibility="collapsed")
                         se = st.slider("EN", 10, 200, 30, key=f"se_{r_idx}", label_visibility="collapsed")
-                        # [확실함] 세로 이미지용 개별 줄 간격 조절 [Certain]
-                        ls = st.slider("L", 1, 30, 8, key=f"ls_{r_idx}", label_visibility="collapsed")
-                        
-                        # [확실함] 한글 [줄바꿈] 영어 렌더링 엔진 (PIL 로컬 엔진) [Certain]
-                        img_v = Image.new('RGB', (item['w'], item['h']), (70, 60, 120))
-                        draw_v = ImageDraw.Draw(img_v)
-                        y_v = item['h'] * (v/100)
-                        try: 
-                            f_kr_v = ImageFont.truetype("NanumGothicBold.ttf", sk)
-                            f_en_v = ImageFont.truetype("NanumGothicBold.ttf", se)
-                        except: 
-                            f_kr_v, f_en_v = ImageFont.load_default(), ImageFont.load_default()
-                        
-                        leading_offset_v = (sk + se) / 2 * (ls / 10) 
-                        draw_v.text((item['w']/2, y_v - sk/2), t_kr, font=f_kr_v, fill=(255,255,255), anchor="mm")
-                        draw_v.text((item['w']/2, y_v + leading_offset_v), t_en, font=f_en_v, fill=(210,210,210), anchor="mm")
-                        
-                        st.image(img_v, use_column_width=True)
-                        st.write(f"<p style='font-size:10px; text-align:center;'>{item['label']}</p>", unsafe_allow_html=True)
-                        # 드롭다운 메뉴 (공간 절약을 위해 collapsed)
-                        st.selectbox("F_K", KR_FONTS_LIST, key=f"fk_{r_idx}", label_visibility="collapsed")
-                        st.selectbox("F_E", EN_FONTS_LIST, key=f"fe_{r_idx}", label_visibility="collapsed")
+                        ls = st.slider("L", 0, 100, 15, key=f"ls_{r_idx}", label_visibility="collapsed")
+                        st.selectbox("F_K", KR_FONTS, key=f"fk_{r_idx}", label_visibility="collapsed")
+                        st.selectbox("F_E", EN_FONTS, key=f"fe_{r_idx}", label_visibility="collapsed")
         else:
             st.info("👈 설정을 마친 후 생성을 시작하세요.")
