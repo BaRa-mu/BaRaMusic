@@ -15,7 +15,7 @@ def render_tab2():
         /* 위젯 간 수직 간격을 12px로 확대 (기존 대비 20% 증가) */
         [data-testid="stVerticalBlock"] > div { margin-top: 2px !important; margin-bottom: 10px !important; }
         
-        /* 입력창 및 드롭다운 높이 28px로 최적화 */
+        /* 입력창 및 드롭다운 높이 26px로 최적화 */
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
             min-height: 35px !important; font-size: 14px !important;
             padding: 0px 10px !important;
