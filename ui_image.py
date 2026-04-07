@@ -1,27 +1,64 @@
 import streamlit as st
+import os
 import utils
 
 def render_tab2():
-    st.header("🖼️ 이미지 생성 상세 설정")
+    st.header("🎨 이미지 팩토리 (디자인 & 다운로드)")
+    aud_parsing = st.file_uploader("🎧 음원 업로드 (제목 파싱용)", type=['wav', 'mp3'])
     
-    with st.expander("이미지 생성 옵션 설정", expanded=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            ratio = st.selectbox("화면 비율", ["16:9 (유튜브)", "9:16 (쇼츠)", "1:1 (인스타그램)"])
-            style = st.selectbox("화풍/스타일", ["실사", "애니메이션", "수채화", "유화", "3D 렌더링"])
-        with col2:
-            quality = st.selectbox("해상도/품질", ["Standard", "HD", "4K", "8K"])
-            variation = st.number_input("생성 개수", 1, 4, 1)
+    t_kr = st.session_state.get('gen_title_kr', "")
+    t_en = st.session_state.get('gen_title_en', "")
+    if aud_parsing:
+        base = os.path.splitext(aud_parsing.name)[0]
+        parts = base.split('_')
+        t_kr = parts[0]
+        t_en = parts[1] if len(parts) > 1 else ""
+        
+    c1, c2 = st.columns(2)
+    with c1: t_kr = st.text_input("📌 한글 제목", value=t_kr)
+    with c2: t_en = st.text_input("📌 영문 제목", value=t_en)
+    
+    d1, d2, d3, d4 = st.columns(4)
+    with d1: font = st.selectbox("글씨체", list(utils.font_links.keys()))
+    with d2: size = st.slider("크기", 30, 120, 60)
+    with d3: y_pos = st.slider("위치(%)", 5, 95, 15)
+    with d4: spc = st.slider("한영 간격", 0, 50, 15)
+    
+    prompt = st.text_input("🤖 AI 배경 프롬프트", "cinematic beautiful sky, peaceful, 4k")
+    
+    col_i1, col_i2, col_i3 = st.columns(3)
+    with col_i1:
+        gen_m = st.checkbox("📺 메인(16:9)", value=True)
+        up_m = st.file_uploader("메인 배경", type=['jpg','png'])
+    with col_i2:
+        gen_t = st.checkbox("📱 틱톡(9:16)", value=False)
+        up_t = st.file_uploader("틱톡 배경", type=['jpg','png'])
+    with col_i3:
+        num_s = st.slider("✂️ 쇼츠(9:16)", 0, 6, 0)
+        up_s = [st.file_uploader(f"쇼츠 {i+1} 배경", type=['jpg','png'], key=f"img_up_{i}") for i in range(num_s)]
 
-    # 이전 탭에서 만든 프롬프트를 기본값으로 가져옴
-    default_p = st.session_state.get("prompt", "")
-    prompt = st.text_area("최종 프롬프트 (가사 탭의 결과가 자동 연동됩니다)", default_p)
-    
-    up_m = st.file_uploader("커스텀 배경 이미지 업로드", type=["png", "jpg", "jpeg"])
-    
-    if st.button("🎨 이미지 생성 및 준비", type="primary"):
-        with st.spinner("배경 이미지를 준비하고 있습니다..."):
-            # utils.prepare_background 함수가 반드시 존재해야 함
-            st.session_state.bg_m = utils.prepare_background(1280, 720, prompt, variation, "bg_m.png", up_m)
-            st.success("이미지가 성공적으로 준비되었습니다!")
-            st.image(st.session_state.bg_m, use_container_width=True)
+    if st.button("✨ 디자인 이미지 렌더링", type="primary", use_container_width=True):
+        if gen_m: st.session_state.res_m = utils.design_and_save_image(1280, 720, prompt, 1, t_kr, t_en, font, size, y_pos, spc, "dm.png", up_m)
+        if gen_t: st.session_state.res_t = utils.design_and_save_image(720, 1280, prompt, 2, t_kr, t_en, font, int(size*0.75), y_pos, spc, "dt.png", up_t)
+        st.session_state.res_s = [utils.design_and_save_image(720, 1280, prompt, 10+i, t_kr, t_en, font, int(size*0.75), y_pos, spc, f"ds_{i}.png", up_s[i]) for i in range(num_s)]
+        st.success("✅ 이미지 생성 완료!")
+
+    if st.session_state.get('res_m') or st.session_state.get('res_t') or st.session_state.get('res_s'):
+        st.divider()
+        cols = st.columns(3)
+        idx = 0
+        if st.session_state.get('res_m'):
+            with cols[idx%3]: 
+                st.image(st.session_state.res_m)
+                st.download_button("⬇️ 가로 다운", open(st.session_state.res_m, "rb"), "Main.png")
+            idx+=1
+        if st.session_state.get('res_t'):
+            with cols[idx%3]: 
+                st.image(st.session_state.res_t)
+                st.download_button("⬇️ 틱톡 다운", open(st.session_state.res_t, "rb"), "TikTok.png")
+            idx+=1
+        for i, p in enumerate(st.session_state.get('res_s', [])):
+            with cols[idx%3]: 
+                st.image(p)
+                st.download_button(f"⬇️ 쇼츠{i+1} 다운", open(p, "rb"), f"Short_{i+1}.png")
+            idx+=1
