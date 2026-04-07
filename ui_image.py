@@ -12,24 +12,24 @@ def render_tab2():
     # --- 🛠️ [직접 조절 구역] 수치를 변경하며 간격을 맞추세요 ---
     st.markdown("""
         <style>
-        /* [1] 위젯 간 전체 간격 조절 */
+        /* 위젯 간 전체 간격 조절 */
         [data-testid="stVerticalBlock"] > div { 
             margin-top: -10px !important; 
             margin-bottom: 2px !important; 
         }
         
-        /* [2] 드롭다운 및 입력창 높이 조절 */
+        /* 드롭다운 및 입력창 높이 조절 */
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
             min-height: 32px !important; height: 32px !important; font-size: 13px !important;
         }
         
-        /* [3] 가사 입력창 전용 높이 */
+        /* 가사 입력창 전용 높이 */
         .stTextArea textarea { height: 120px !important; }
         
-        /* [4] 한글제목/라벨과 입력박스 사이 간격 조절 */
+        /* 제목(라벨)과 입력박스 사이 간격 조절 (0px로 설정) */
         .stSelectbox label, .stTextArea label, .stTextInput label, .stSlider label {
             font-size: 11px !important; font-weight: 600 !important;
-            margin-bottom: 0px !important; /* 이 값을 조절하여 박스와 붙이거나 띄움 */
+            margin-bottom: 0px !important; /* 요청하신 대로 0px로 수정 */
             padding-top: 6px !important;
             color: #444 !important;
         }
@@ -61,12 +61,12 @@ def render_tab2():
 
         st.divider()
         
-        # 수량 설정
+        # 플랫폼별 수량 설정
         st.write("**📱 플랫폼별 수량**")
         st.info("📺 메인(16:9) / 📱 틱톡(9:16) 고정")
         num_shorts = st.slider("✂️ 쇼츠 이미지 (0~5개)", 0, 5, 2)
 
-        # 드롭다운 메뉴 (건드리지 않은 순수 리스트)
+        # 드롭다운 메뉴 (예술 스타일)
         s_style = st.selectbox("🎨 예술 스타일", ["사실적인 사진", "시네마틱 3D", "유화", "수채화", "판타지", "미니멀", "빈티지", "사이버펑크", "초현실", "팝아트", "잉크", "스팀펑크", "픽셀", "고딕", "우키요에"])
 
         st.divider()
@@ -93,17 +93,16 @@ def render_tab2():
 
         if st.session_state.get('img_results_data'):
             results = st.session_state.img_results_data
-            
-            # 폰트 리스트
             kr_fonts = ["나눔붓", "나눔펜", "상상꽃길", "배민연성", "교보손글씨", "나눔바른펜", "안동엄마", "상상신비", "이순신굵은", "배민한나", "제주한라산", "나눔라운드", "상상금도끼", "안성탕면", "tvN즐거운"]
             en_fonts = ["Great Vibes", "Dancing Script", "Pacifico", "Allura", "Sacramento", "Arizonia", "Pinyon Script", "Parisienne", "Cookie", "Kaushan Script", "Tangerine", "Clicker Script", "Playball", "Alex Brush", "Monsieur"]
 
-            # 1. 메인 이미지 (가로 16:9)
+            # 1. 메인 이미지 (한글 제목 포함 출력)
             main_img = results[0]
             with st.container(border=True):
                 c_img, c_ctrl = st.columns([1, 1])
                 with c_img:
-                    st.image(main_img['url'] + f"?text={title_en}", caption=main_img['label'], use_column_width=True)
+                    # 한글과 영어를 동시에 출력하도록 수정
+                    st.image(main_img['url'] + f"?text={title_kr}%0A{title_en}", caption=main_img['label'], use_column_width=True)
                 with c_ctrl:
                     st.write("**메인 조절**")
                     st.selectbox("한글 폰트", kr_fonts, key="f_kr_m")
@@ -113,17 +112,16 @@ def render_tab2():
 
             st.write("**📱 세로 규격 (9:16) - 콤팩트 보기**")
             
-            # 2. 세로 이미지 (9:16) - 5열 배치로 크기를 아주 작게 줄임
+            # 2. 세로 이미지 (한글 제목 포함 출력)
             v_items = results[1:]
-            cols = st.columns(5) # 5열로 나누어 크기를 작게 조절
+            cols = st.columns(5)
             for idx, img in enumerate(v_items):
                 with cols[idx % 5]:
                     with st.container(border=True):
-                        # 이미지 크기를 작게 유지
-                        st.image(img['url'] + f"?text={title_en}", use_column_width=True)
+                        # 한글과 영어를 동시에 출력하도록 수정
+                        st.image(img['url'] + f"?text={title_kr}%0A{title_en}", use_column_width=True)
                         st.write(f"<p style='font-size:10px; margin-bottom:2px;'>{img['label']}</p>", unsafe_allow_html=True)
                         
-                        # 각 이미지별 최소 조절 도구 (공간 절약을 위해 드롭다운만 배치)
                         st.selectbox("한글", kr_fonts, key=f"f_kr_{idx}", label_visibility="collapsed")
                         st.selectbox("영어", en_fonts, key=f"f_en_{idx}", label_visibility="collapsed")
                         st.slider("위치", 0, 100, 50, key=f"v_{idx}", label_visibility="collapsed")
