@@ -25,7 +25,7 @@ def render_tab1():
             font-size: 13px !important; font-weight: 600 !important;
             margin-bottom: 5px !important; padding-top: 10px !important;
         }
-        div[role="radiogroup"] { gap: 20px !important; }
+        div[role="radiogroup"] { gap: 10px !important; }
         </style>
     """, unsafe_allow_html=True)
 
