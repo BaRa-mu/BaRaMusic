@@ -74,4 +74,52 @@ def render_tab2():
                     # [확실함] 줄 간격 조절 엔진 고도화
                     img = Image.new('RGB', (m_item['w'], m_item['h']), (60, 110, 60))
                     draw = ImageDraw.Draw(img)
-                    y = m_item['h'] * (v
+                    y = m_item['h'] * (v_m/100)
+                    try: 
+                        f_kr = ImageFont.truetype("NanumGothicBold.ttf", sk_m)
+                        f_en = ImageFont.truetype("NanumGothicBold.ttf", se_m)
+                    except: 
+                        f_kr, f_en = ImageFont.load_default(), ImageFont.load_default()
+                    # 한글(위) / 영어(아래) 물리적 좌표 분리 출력
+                    # [Certain] 오프셋 계산: (한글 크기 + 영어 크기) / 2를 기본 행간으로 두고 조절
+                    leading_offset = (sk_m + se_m) / 2 * (ls_m / 10) # 1.0~3.0배 조절
+                    draw.text((m_item['w']/2, y - sk_m/2), t_kr, font=f_kr, fill=(255,255,255), anchor="mm")
+                    draw.text((m_item['w']/2, y + leading_offset), t_en, font=f_en, fill=(220,220,220), anchor="mm")
+                    st.image(img, use_column_width=True)
+
+            # 2. 세로 규격 (9:16) - 3열 콤팩트 배치 (사이즈 작게 줄임)
+            st.write("**📱 세로 규격 (9:16) - 3열 콤팩트**")
+            v_items = all_imgs[1:]
+            v_cols = st.columns(3) # 3열 그리드로 사이즈 대폭 축소
+            for idx, item in enumerate(v_items):
+                r_idx = idx + 1
+                with v_cols[idx % 3]:
+                    with st.container(border=True):
+                        # 실시간 조절 바
+                        v = st.slider("V", 0, 100, 50, key=f"v_{r_idx}", label_visibility="collapsed")
+                        sk = st.slider("KR", 10, 200, 45, key=f"sk_{r_idx}", label_visibility="collapsed")
+                        se = st.slider("EN", 10, 200, 30, key=f"se_{r_idx}", label_visibility="collapsed")
+                        # [확실함] 세로 이미지용 개별 줄 간격 조절 [Certain]
+                        ls = st.slider("L", 1, 30, 8, key=f"ls_{r_idx}", label_visibility="collapsed")
+                        
+                        # [확실함] 한글 [줄바꿈] 영어 렌더링 엔진 (PIL 로컬 엔진) [Certain]
+                        img_v = Image.new('RGB', (item['w'], item['h']), (70, 60, 120))
+                        draw_v = ImageDraw.Draw(img_v)
+                        y_v = item['h'] * (v/100)
+                        try: 
+                            f_kr_v = ImageFont.truetype("NanumGothicBold.ttf", sk)
+                            f_en_v = ImageFont.truetype("NanumGothicBold.ttf", se)
+                        except: 
+                            f_kr_v, f_en_v = ImageFont.load_default(), ImageFont.load_default()
+                        
+                        leading_offset_v = (sk + se) / 2 * (ls / 10) 
+                        draw_v.text((item['w']/2, y_v - sk/2), t_kr, font=f_kr_v, fill=(255,255,255), anchor="mm")
+                        draw_v.text((item['w']/2, y_v + leading_offset_v), t_en, font=f_en_v, fill=(210,210,210), anchor="mm")
+                        
+                        st.image(img_v, use_column_width=True)
+                        st.write(f"<p style='font-size:10px; text-align:center;'>{item['label']}</p>", unsafe_allow_html=True)
+                        # 드롭다운 메뉴 (공간 절약을 위해 collapsed)
+                        st.selectbox("F_K", KR_FONTS_LIST, key=f"fk_{r_idx}", label_visibility="collapsed")
+                        st.selectbox("F_E", EN_FONTS_LIST, key=f"fe_{r_idx}", label_visibility="collapsed")
+        else:
+            st.info("👈 설정을 마친 후 생성을 시작하세요.")
