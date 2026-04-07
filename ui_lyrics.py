@@ -4,7 +4,7 @@ import utils
 import os
 import google.generativeai as genai
 
-# API 키 관리
+# API 키 관리 로직 (유지)
 def get_api_key():
     if os.path.exists("api_key.txt"):
         with open("api_key.txt", "r") as f:
@@ -16,16 +16,29 @@ def save_api_key(key):
         f.write(key)
 
 def render_tab1():
-    # [확실함] 메뉴 간격 확대 및 가독성 위주 CSS
+    # [확실함] 겹침 없고 시원한 밸런스 레이아웃 CSS
     st.markdown("""
         <style>
-        [data-testid="stVerticalBlock"] > div { margin-top: 5px !important; margin-bottom: 12px !important; }
-        div[data-baseweb="select"] > div, .stTextInput input { height: 35px !important; font-size: 14px !important; }
-        .stSelectbox label, .stRadio label, .stTextInput label {
-            font-size: 13px !important; font-weight: 600 !important;
-            margin-bottom: 5px !important; padding-top: 10px !important;
+        /* 위젯 사이의 적절한 간격 확보 (답답함 해소) */
+        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 8px !important; }
+        
+        /* 드롭다운 박스 높이 32px 유지 및 내부 정렬 */
+        div[data-baseweb="select"] > div, .stTextInput input {
+            height: 32px !important; min-height: 32px !important;
+            padding: 0px 10px !important; display: flex !important; align-items: center !important; font-size: 13px !important;
         }
-        div[role="radiogroup"] { gap: 10px !important; }
+        
+        /* 라벨 폰트 및 여백 최적화 */
+        .stSelectbox label, .stRadio label, .stTextInput label {
+            font-size: 12px !important; font-weight: 600 !important; color: #444 !important;
+            margin-bottom: 4px !important; padding-top: 5px !important;
+        }
+
+        /* 라디오 버튼 간격 표준화 */
+        div[role="radiogroup"] { gap: 15px !important; margin-top: 2px !important; }
+        
+        /* 결과창 가시성 증대 */
+        .stCode { margin-top: 0px !important; border: 1px solid #e6e9ef !important; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -36,17 +49,19 @@ def render_tab1():
         api_key = st.text_input("🔑 Google API Key", value=saved_key, type="password")
         if api_key != saved_key: save_api_key(api_key)
 
-        h_col, b_col = st.columns([0.8, 1.2])
+        h_col, b_col = st.columns([0.7, 1.3])
         with h_col: st.write("### 📝 곡 설정")
         with b_col: gen_btn = st.button("🚀 초강력 AI 생성", type="primary", use_container_width=True)
 
-        subject = st.text_input("🎯 주제/메시지", placeholder="예: 주님과 함께하는 즐겁고 행복한 삶")
-        s_lyric_style = st.selectbox("✒️ 가사 스타일", ["서정적인", "시적인", "직설적인", "성경적인", "현대적인", "감성적인", "이야기하듯", "찬양 중심"])
+        subject = st.text_input("🎯 주제/메시지", placeholder="예: 주님과 함께하는 즐거운 삶")
+        lyric_styles = ["서정적인", "시적인", "직설적인", "성경적인", "현대적인", "감성적인", "이야기하듯", "찬양 중심"]
+        s_lyric_style = st.selectbox("✒️ 가사 스타일", lyric_styles)
+        
         target = st.radio("🎯 카테고리", ["대중음악", "⛪ CCM"], horizontal=True)
         
         if target == "대중음악":
             s_genre = st.selectbox("🎧 장르", utils.suno_pop_list)
-            moods = ["선택안함", "감성적인", "기쁘고 희망찬", "에너지 넘치는", "몽환적인", "따뜻하고 포근한", "쓸쓸하고 우울한", "향수를 부르는", "사랑스러운", "흥겨운"]
+            moods = ["선택안함", "감성적인", "기쁘고 희망찬", "에너지 넘치는", "몽환적인", "따뜻하고 포근한", "쓸쓸하고 우울한", "사랑스러운", "흥겨운"]
         else:
             s_genre = st.selectbox("⛪ 장르", utils.suno_ccm_list)
             moods = ["선택안함", "경건하고 거룩한", "평화롭고 차분한", "웅장한", "비장한", "치유되는", "따뜻하고 포근한", "기쁘고 희망찬"]
@@ -59,7 +74,7 @@ def render_tab1():
         st.divider()
         v_type = st.radio("🎤 보컬 유형", ["경음악", "남자", "여자", "듀엣", "합창"], horizontal=True)
         
-        # [확실함] 원본 70종 보컬 리스트 유지
+        # [확실함] 원본 70종 보컬 데이터 복구 및 유지
         if v_type == "남자":
             s_vocal = st.selectbox("👨‍🎤 남성 스타일", ["감미로운 남성 팝 보컬", "허스키하고 짙은 호소력의 남성", "파워풀한 고음의 남성 락 보컬", "부드러운 어쿠스틱 인디 남성", "그루브 넘치는 R&B 남성", "중후하고 따뜻한 바리톤", "소울풀한 가스펠 남성 보컬", "맑고 청아한 미성의 남성", "거칠고 날것의 빈티지 락 보컬", "세련된 신스팝 남성 보컬", "나지막이 속삭이는 ASMR 스타일 보컬", "리드미컬한 힙합/랩 남성 보컬", "애절한 발라드 남성 보컬", "포크/컨트리 스타일의 담백한 남성", "뮤지컬 스타일의 드라마틱한 남성", "블루지하고 끈적한 남성 보컬", "시원하게 뻗어나가는 청량한 남성", "몽환적이고 리버브가 강한 남성", "재지(Jazzy)하고 여유로운 남성", "트렌디한 오토튠 스타일 남성 보컬"])
         elif v_type == "여자":
@@ -73,24 +88,36 @@ def render_tab1():
     with right_col:
         st.subheader("✨ 생성 결과물")
         if gen_btn:
-            if not api_key: st.error("API 키 확인 필요"); return
+            if not api_key: st.error("API 키 입력 필요"); return
             if not subject: st.error("주제 입력 필요"); return
-            with st.spinner("AI 생성 중..."):
+            with st.spinner("최신 Gemini 모델이 한글 가사와 800자 프롬프트를 생성 중..."):
                 try:
                     genai.configure(api_key=api_key)
                     model = genai.GenerativeModel('gemini-3.1-pro-preview')
-                    prompt = f"Role: Producer. Generate [TITLE], [PROMPT], [LYRICS] for Subject: {subject}. Style: {s_lyric_style}, Genre: {target}/{s_genre}, Mood: {s_mood}, Vocal: {s_vocal}, Inst: {s_inst}. No markdown bolding."
+                    
+                    # [확실함] 한글 가사 강제 및 800자 분량 확보를 위한 정밀 명령
+                    prompt = f"""
+                    Role: Professional K-Pop & CCM Producer.
+                    Task: Generate [TITLE], [PROMPT], and [LYRICS].
+                    
+                    Condition:
+                    - [TITLE]: Create a title in 'KoreanTitle_EnglishTitle' format.
+                    - [PROMPT]: Provide a Suno AI style prompt in English, at least 800 characters long. Include detailed audio engineering terms (wide stereo, high-fidelity, pristine mastering, spatial resonance). NO BOLDING.
+                    - [LYRICS]: Write a full-length song structure (Intro-Verse1-PreChorus-Chorus-Verse2-Chorus-Bridge-Solo-Chorus-Outro).
+                    - IMPORTANT: The [LYRICS] MUST be written in KOREAN. Do not use English for lyrics.
+                    
+                    Input:
+                    Subject: {subject} / Style: {s_lyric_style} / Genre: {target}-{s_genre} / Mood: {s_mood} / Vocal: {s_vocal} / Inst: {s_inst}
+                    """
+                    
                     response = model.generate_content(prompt)
                     res = response.text
                     
-                    # [확실함] 출력 전 ** 강제 제거 로직 적용
-                    raw_title = res.split("[TITLE]")[1].split("[PROMPT]")[0].strip()
-                    raw_prompt = res.split("[PROMPT]")[1].split("[LYRICS]")[0].strip()
-                    raw_lyrics = res.split("[LYRICS]")[1].strip()
+                    # [확실함] 불필요한 별표(**) 제거 및 데이터 파싱
+                    st.session_state.gen_title = res.split("[TITLE]")[1].split("[PROMPT]")[0].strip().replace("**", "")
+                    st.session_state.gen_prompt = res.split("[PROMPT]")[1].split("[LYRICS]")[0].strip().replace("**", "")
+                    st.session_state.gen_lyrics = res.split("[LYRICS]")[1].strip().replace("**", "")
 
-                    st.session_state.gen_title = raw_title.replace("**", "")
-                    st.session_state.gen_prompt = raw_prompt.replace("**", "")
-                    st.session_state.gen_lyrics = raw_lyrics.replace("**", "")
                 except Exception as e: st.error(f"실패: {str(e)}")
 
         if 'gen_title' in st.session_state:
@@ -98,8 +125,10 @@ def render_tab1():
                 st.write("**1. 🎵 Title**")
                 st.code(st.session_state.gen_title)
             with st.container(border=True):
-                st.write("**2. 🎸 Style Prompt**")
+                st.write(f"**2. 🎸 Style Prompt ({len(st.session_state.gen_prompt)}자)**")
                 st.code(st.session_state.gen_prompt)
             with st.container(border=True):
-                st.write("**3. 📝 Lyrics**")
+                st.write("**3. 📝 Lyrics (한국어 풀버전)**")
                 st.code(st.session_state.gen_lyrics, language="markdown")
+        else:
+            st.info("👈 설정을 마친 후 상단 '생성' 버튼을 눌러주세요.")
