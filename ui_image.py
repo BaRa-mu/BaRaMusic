@@ -21,9 +21,9 @@ def render_tab2():
         
         /* [2] 드롭다운(Select) 및 입력창(Input) 높이 조절 */
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
-            min-height: 25px !important;     /* 조절: 최소 높이 */
-            height: 25px !important;         /* 조절: 드롭메뉴/입력창 높이 */
-            font-size: 13px !important;      /* 조절: 박스 안 글자 크기 */
+            min-height: 29px !important;     /* 조절: 최소 높이 */
+            height: 29px !important;         /* 조절: 드롭메뉴/입력창 높이 */
+            font-size: 11px !important;      /* 조절: 박스 안 글자 크기 */
             padding: 0px 10px !important;    /* 조절: 박스 안 좌우 여백 */
         }
         
