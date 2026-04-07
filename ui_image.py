@@ -1,64 +1,55 @@
 import streamlit as st
+import time
 import os
-import utils
+import google.generativeai as genai
+
+def get_api_key():
+    if os.path.exists("api_key.txt"):
+        with open("api_key.txt", "r") as f: return f.read().strip()
+    return ""
 
 def render_tab2():
-    st.header("🎨 이미지 팩토리 (디자인 & 다운로드)")
-    aud_parsing = st.file_uploader("🎧 음원 업로드 (제목 파싱용)", type=['wav', 'mp3'])
+    # [확실함] 가사 탭과 동일한 간격 유지
+    st.markdown("""
+        <style>
+        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 12px !important; }
+        div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
+            min-height: 32px !important; font-size: 13px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    l_col, r_col = st.columns([1, 2.3])
     
-    t_kr = st.session_state.get('gen_title_kr', "")
-    t_en = st.session_state.get('gen_title_en', "")
-    if aud_parsing:
-        base = os.path.splitext(aud_parsing.name)[0]
-        parts = base.split('_')
-        t_kr = parts[0]
-        t_en = parts[1] if len(parts) > 1 else ""
+    with l_col:
+        st.write("### 🖼️ 앨범 아트 설정")
+        api_key = get_api_key()
         
-    c1, c2 = st.columns(2)
-    with c1: t_kr = st.text_input("📌 한글 제목", value=t_kr)
-    with c2: t_en = st.text_input("📌 영문 제목", value=t_en)
-    
-    d1, d2, d3, d4 = st.columns(4)
-    with d1: font = st.selectbox("글씨체", list(utils.font_links.keys()))
-    with d2: size = st.slider("크기", 30, 120, 60)
-    with d3: y_pos = st.slider("위치(%)", 5, 95, 15)
-    with d4: spc = st.slider("한영 간격", 0, 50, 15)
-    
-    prompt = st.text_input("🤖 AI 배경 프롬프트", "cinematic beautiful sky, peaceful, 4k")
-    
-    col_i1, col_i2, col_i3 = st.columns(3)
-    with col_i1:
-        gen_m = st.checkbox("📺 메인(16:9)", value=True)
-        up_m = st.file_uploader("메인 배경", type=['jpg','png'])
-    with col_i2:
-        gen_t = st.checkbox("📱 틱톡(9:16)", value=False)
-        up_t = st.file_uploader("틱톡 배경", type=['jpg','png'])
-    with col_i3:
-        num_s = st.slider("✂️ 쇼츠(9:16)", 0, 6, 0)
-        up_s = [st.file_uploader(f"쇼츠 {i+1} 배경", type=['jpg','png'], key=f"img_up_{i}") for i in range(num_s)]
+        # 가사 데이터 연동
+        context_lyrics = st.text_area("📝 기반 가사 컨텍스트", 
+                                     value=st.session_state.get('gen_lyrics', ""), 
+                                     height=250)
 
-    if st.button("✨ 디자인 이미지 렌더링", type="primary", use_container_width=True):
-        if gen_m: st.session_state.res_m = utils.design_and_save_image(1280, 720, prompt, 1, t_kr, t_en, font, size, y_pos, spc, "dm.png", up_m)
-        if gen_t: st.session_state.res_t = utils.design_and_save_image(720, 1280, prompt, 2, t_kr, t_en, font, int(size*0.75), y_pos, spc, "dt.png", up_t)
-        st.session_state.res_s = [utils.design_and_save_image(720, 1280, prompt, 10+i, t_kr, t_en, font, int(size*0.75), y_pos, spc, f"ds_{i}.png", up_s[i]) for i in range(num_s)]
-        st.success("✅ 이미지 생성 완료!")
+        s_img_style = st.selectbox("🎨 예술 스타일", ["사실적인 사진", "시네마틱 3D", "유화", "판타지 일러스트", "미니멀리즘"])
+        s_ratio = st.selectbox("📐 화면 비율", ["1:1 (Square)", "16:9 (Wide)", "9:16 (Vertical)"])
 
-    if st.session_state.get('res_m') or st.session_state.get('res_t') or st.session_state.get('res_s'):
         st.divider()
-        cols = st.columns(3)
-        idx = 0
-        if st.session_state.get('res_m'):
-            with cols[idx%3]: 
-                st.image(st.session_state.res_m)
-                st.download_button("⬇️ 가로 다운", open(st.session_state.res_m, "rb"), "Main.png")
-            idx+=1
-        if st.session_state.get('res_t'):
-            with cols[idx%3]: 
-                st.image(st.session_state.res_t)
-                st.download_button("⬇️ 틱톡 다운", open(st.session_state.res_t, "rb"), "TikTok.png")
-            idx+=1
-        for i, p in enumerate(st.session_state.get('res_s', [])):
-            with cols[idx%3]: 
-                st.image(p)
-                st.download_button(f"⬇️ 쇼츠{i+1} 다운", open(p, "rb"), f"Short_{i+1}.png")
-            idx+=1
+        gen_btn = st.button("🚀 이미지 프롬프트 생성", type="primary", use_container_width=True)
+
+    with r_col:
+        st.subheader("✨ 생성 결과물")
+        
+        if gen_btn:
+            if not api_key or not context_lyrics: st.error("키와 가사를 확인하세요."); return
+            with st.spinner("이미지 프롬프트 설계 중..."):
+                try:
+                    genai.configure(api_key=api_key)
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    prompt = f"Act as a professional Concept Artist. Generate a detailed English image prompt (800+ chars) for a song album cover based on these lyrics: {context_lyrics[:1000]}. Style: {s_img_style}, Ratio: {s_ratio}. No bolding (**)."
+                    
+                    res = model.generate_content(prompt).text.replace("**", "")
+                    st.session_state.gen_img_prompt = res
+                except Exception as e: st.error(f"실패: {str(e)}")
+
+        if 'gen_img_prompt' in st.session_state:
+            st.code(st.session_state.gen_img_prompt, language="markdown")
