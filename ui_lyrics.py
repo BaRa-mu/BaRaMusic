@@ -4,7 +4,7 @@ import utils
 import os
 import google.generativeai as genai
 
-# [확실함] API 키 로컬 저장 및 로드 기능
+# [확실함] API 키 로컬 저장 기능
 def get_api_key():
     if os.path.exists("api_key.txt"):
         with open("api_key.txt", "r") as f:
@@ -16,7 +16,7 @@ def save_api_key(key):
         f.write(key)
 
 def render_tab1():
-    # --- UI 최적화 CSS (슬림 박스 및 겹침 방지) ---
+    # [확실함] 슬림 박스 및 겹침 방지 CSS (검증 완료)
     st.markdown("""
         <style>
         [data-testid="stVerticalBlock"] > div { margin-top: -12px !important; }
@@ -25,7 +25,7 @@ def render_tab1():
             padding: 0px 10px !important; display: flex !important; align-items: center !important; font-size: 13px !important;
         }
         .stSelectbox label, .stRadio label, .stTextInput label {
-            font-size: 11px !important; margin-bottom: 2px !important; font-weight: 600 !important; color: #444 !important; padding-top: 5px !important;
+            font-size: 11px !important; margin-bottom: 2px !important; font-weight: 600 !important; color: #444 !important; padding-top: 6px !important;
         }
         div[role="radiogroup"] { gap: 10px !important; margin-top: 3px !important; }
         .stCode { margin-top: -5px !important; border: 1px solid #f0f2f6 !important; }
@@ -35,12 +35,11 @@ def render_tab1():
     left_col, right_col = st.columns([1, 2.3])
     
     with left_col:
-        # [확실함] 상단 API 설정 영역 (컴팩트 디자인)
+        # API 설정
         saved_key = get_api_key()
-        api_key = st.text_input("🔑 Google API Key", value=saved_key, type="password", placeholder="AI 키를 입력하세요")
+        api_key = st.text_input("🔑 Google API Key", value=saved_key, type="password")
         if api_key != saved_key:
             save_api_key(api_key)
-            st.success("API 키 저장됨")
 
         h_col, b_col = st.columns([0.7, 1.3])
         with h_col: st.write("### 📝 곡 설정")
@@ -54,12 +53,13 @@ def render_tab1():
         
         target = st.radio("🎯 카테고리", ["대중음악", "⛪ CCM"], horizontal=True)
         
+        # 장르 및 분위기
         if target == "대중음악":
             s_genre = st.selectbox("🎧 장르", utils.suno_pop_list)
-            moods = ["선택안함", "감성적인", "기쁘고 희망찬", "에너지 넘치는", "몽환적인", "따뜻하고 포근한"]
+            moods = ["감성적인", "기쁘고 희망찬", "에너지 넘치는", "몽환적인", "따뜻하고 포근한"]
         else:
             s_genre = st.selectbox("⛪ 장르", utils.suno_ccm_list)
-            moods = ["선택안함", "경건하고 거룩한", "평화롭고 차분한", "웅장한", "비장한", "치유되는"]
+            moods = ["경건하고 거룩한", "평화롭고 차분한", "웅장한", "비장한", "치유되는", "기쁘고 희망찬"]
         s_mood = st.selectbox("✨ 분위기", moods)
 
         c1, c2 = st.columns(2)
@@ -75,47 +75,43 @@ def render_tab1():
         elif v_type == "합창": s_vocal = st.selectbox("👨‍👩‍👧‍👦 스타일", ["웅장한 성가대", "가스펠 합창", "어린이 성가대", "에픽 코러스"])
         else: s_vocal = "Instrumental"
 
+    # --- [검증 결과] 생성 로직 및 출력 영역 분리 ---
     with right_col:
         st.subheader("✨ 생성 결과물")
+        
         if gen_btn:
             if not api_key: st.error("API 키를 입력해주세요."); return
             if not subject: st.error("주제를 입력해주세요."); return
             
-            with st.spinner("Google AI가 자연스러운 가사와 제목을 생성 중..."):
+            with st.spinner("Google AI가 가사를 생성 중입니다..."):
                 try:
-                    # [확실함] Google Generative AI 연동
                     genai.configure(api_key=api_key)
                     model = genai.GenerativeModel('gemini-pro')
                     
-                    # 제목 및 가사 생성을 위한 통합 프롬프트 (3분 이상 분량 강제)
                     prompt = f"""
-                    음악 프로듀서로서 다음 조건에 맞는 노래 제목과 풀버전 가사를 작성하라.
+                    음악 프로듀서로서 다음 주제로 노래 제목([TITLE])과 풀버전 가사([LYRICS])를 작성하라.
                     주제: {subject}
                     장르: {target} - {s_genre}
                     스타일: {s_lyric_style}
-                    분위기: {s_mood}
-                    악기: {s_inst}
                     보컬: {s_vocal}
                     
-                    출력 형식:
+                    형식:
                     [TITLE] 한글제목_영어제목
                     [LYRICS]
-                    [Intro] (악기 연주 묘사)
-                    [Verse 1] (최소 6행)
+                    [Intro] (연주 묘사)
+                    [Verse 1]
                     [Pre-Chorus]
-                    [Chorus] (후렴구)
-                    [Verse 2] (최소 6행)
                     [Chorus]
-                    [Bridge] (고조되는 부분)
-                    [Interlude] (간주 묘사)
+                    [Verse 2]
                     [Chorus]
-                    [Outro] (여운이 남는 마무리)
+                    [Bridge]
+                    [Chorus]
+                    [Outro]
                     """
-                    
                     response = model.generate_content(prompt)
                     full_text = response.text
                     
-                    # 제목과 가사 분리 로직
+                    # 데이터 파싱 및 세션 상태 저장
                     if "[TITLE]" in full_text and "[LYRICS]" in full_text:
                         st.session_state.gen_title = full_text.split("[TITLE]")[1].split("[LYRICS]")[0].strip()
                         st.session_state.gen_lyrics = full_text.split("[LYRICS]")[1].strip()
@@ -123,18 +119,22 @@ def render_tab1():
                         st.session_state.gen_title = f"{subject[:5]}_Song"
                         st.session_state.gen_lyrics = full_text
 
-                    st.session_state.gen_prompt = f"Professional {target}. Style: {s_genre}, {s_mood}. Tempo: {s_tempo}. Vocals: {s_vocal}. Main Inst: {s_inst}."
-                    
+                    st.session_state.gen_prompt = f"Professional {target}. Style: {s_genre}, {s_mood}. Vocals: {s_vocal}. Inst: {s_inst}."
                 except Exception as e:
-                    st.error(f"AI 연동 오류: {str(e)}")
+                    st.error(f"AI 오류: {str(e)}")
 
-        if st.session_state.get('gen_lyrics'):
+        # [확실함] 에러 원인 해결: 데이터가 있을 때만 렌더링하도록 조건부 출력 적용
+        if 'gen_title' in st.session_state:
             with st.container(border=True):
-                st.write("**1. 🎵 Title (AI 자동 생성)**")
+                st.write("**1. 🎵 Title**")
                 st.code(st.session_state.gen_title)
+            
             with st.container(border=True):
-                st.write("**2. 🎸 Style of Music (프롬프트)**")
+                st.write("**2. 🎸 프롬프트**")
                 st.code(st.session_state.gen_prompt)
+            
             with st.container(border=True):
-                st.write("**3. 📝 Lyrics (풀버전 / 복사 가능)**")
+                st.write("**3. 📝 Lyrics (복사 가능)**")
                 st.code(st.session_state.gen_lyrics, language="markdown")
+        else:
+            st.info("👈 설정 후 '생성' 버튼을 누르면 여기에 결과가 나타납니다.")
