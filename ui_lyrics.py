@@ -4,7 +4,7 @@ import os
 import google.generativeai as genai
 import utils
 
-# [확실함] 데이터 보호를 위한 상수 분리
+# [확실함] 보컬 데이터 70종 완벽 보존
 VOCAL_DATA = {
     "남자": ["감미로운 남성 팝 보컬", "허스키하고 짙은 호소력의 남성", "파워풀한 고음의 남성 락 보컬", "부드러운 어쿠스틱 인디 남성", "그루브 넘치는 R&B 남성", "중후하고 따뜻한 바리톤", "소울풀한 가스펠 남성 보컬", "맑고 청아한 미성의 남성", "거칠고 날것의 빈티지 락 보컬", "세련된 신스팝 남성 보컬", "나지막이 속삭이는 ASMR 스타일 보컬", "리드미컬한 힙합/랩 남성 보컬", "애절한 발라드 남성 보컬", "포크/컨트리 스타일의 담백한 남성", "뮤지컬 스타일의 드라마틱한 남성", "블루지하고 끈적한 남성 보컬", "시원하게 뻗어나가는 청량한 남성", "몽환적이고 리버브가 강한 남성", "재지(Jazzy)하고 여유로운 남성", "트렌디한 오토튠 스타일 남성 보컬"],
     "여자": ["맑고 청아한 여성 팝 보컬", "호소력 짙은 파워 디바", "몽환적이고 공기 반 소리 반 여성 보컬", "허스키하고 매력적인 알앤비 여성", "따뜻하고 포근한 어쿠스틱 여성", "통통 튀는 상큼한 아이돌 보컬", "깊은 울림의 소울/가스펠 여성", "세련된 재즈 보컬", "폭발적인 고음의 락 보컬", "속삭이는 듯한 인디 포크 여성", "애절하고 감성적인 발라드 여성", "시원하고 청량한 썸머 팝 보컬", "다크하고 신비로운 일렉트로닉 여성", "우아하고 성악적인 소프라노", "나른하고 매혹적인 로파이 보컬", "강렬한 걸크러시 힙합 여성 보컬", "뮤지컬 주인공 같은 드라마틱한 여성", "빈티지 레트로 감성의 여성 보컬", "트렌디하고 리드미컬한 팝 여성", "웅장한 시네마틱 여성 보컬"],
@@ -18,39 +18,46 @@ def get_api_key():
     return ""
 
 def render_tab1():
-    # [확실함] 겹침 방지 및 박스 슬림화 정밀 제어
+    # [확실함] 겹침 해결 및 가시성 확보 CSS
     st.markdown("""
         <style>
-        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 10px !important; }
+        /* 음수 마진 제거하여 겹침 방지 */
+        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 8px !important; }
+        
+        /* 슬림한 박스 디자인 (32px) 유지 */
         div[data-baseweb="select"] > div, .stTextInput input {
             height: 32px !important; min-height: 32px !important;
             padding: 0px 10px !important; display: flex !important; align-items: center !important; font-size: 13px !important;
         }
+        
+        /* 라벨 가독성 확보 */
         .stSelectbox label, .stRadio label, .stTextInput label {
-            font-size: 12px !important; font-weight: 600 !important; color: #444 !important;
+            font-size: 12px !important; font-weight: 600 !important; color: #333 !important;
             margin-bottom: 4px !important; padding-top: 5px !important;
         }
         </style>
     """, unsafe_allow_html=True)
 
-    l_col, r_col = st.columns([1, 2.3])
+    left_col, right_col = st.columns([1, 2.3])
     
-    with l_col:
+    with left_col:
+        # API 설정
         api_key = st.text_input("🔑 API Key", value=get_api_key(), type="password")
-        if api_key: 
+        if api_key:
             with open("api_key.txt", "w") as f: f.write(api_key)
 
+        # 제목과 버튼 겹침 차단 배치
         h_col, b_col = st.columns([0.8, 1.2])
         with h_col: st.write("### 📝 곡 설정")
         with b_col: gen_btn = st.button("🚀 초강력 AI 생성", type="primary", use_container_width=True)
 
-        subject = st.text_input("🎯 주제/메시지", placeholder="주제를 입력하세요")
+        subject = st.text_input("🎯 주제/메시지", placeholder="예: 새벽녘 부활하신 주님")
         s_lyric_style = st.selectbox("✒️ 가사 스타일", ["서정적인", "시적인", "직설적인", "성경적인", "현대적인", "감성적인", "이야기하듯", "찬양 중심"])
         target = st.radio("🎯 카테고리", ["대중음악", "⛪ CCM"], horizontal=True)
         
-        # [높은 확률] 장르 및 분위기 매핑
+        # 장르 및 분위기
         s_genre = st.selectbox("🎧 장르", utils.suno_pop_list if target=="대중음악" else utils.suno_ccm_list)
-        s_mood = st.selectbox("✨ 분위기", ["감성적인", "기쁘고 희망찬", "에너지 넘치는", "몽환적인", "따뜻하고 포근한"] if target=="대중음악" else ["경건하고 거룩한", "평화롭고 차분한", "웅장한", "비장한", "치유되는"])
+        s_mood = st.selectbox("✨ 분위기", ["선택안함", "감성적인", "기쁘고 희망찬", "평화롭고 차분한", "웅장한", "비장한"])
 
         c1, c2 = st.columns(2)
         with c1: s_tempo = st.selectbox("🎵 템포", utils.suno_tempo_list)
@@ -60,23 +67,47 @@ def render_tab1():
         v_type = st.radio("🎤 보컬 유형", ["경음악", "남자", "여자", "듀엣", "합창"], horizontal=True)
         s_vocal = st.selectbox(f"👨‍🎤 {v_type} 스타일", VOCAL_DATA[v_type]) if v_type != "경음악" else "Instrumental"
 
-    with r_col:
+    with right_col:
         st.subheader("✨ 생성 결과물")
+        
         if gen_btn:
             if not api_key or not subject: st.error("키와 주제를 확인하세요."); return
-            with st.spinner("Gemini 3.1 Pro가 대곡 작사 중..."):
+            with st.spinner("한국어 가사와 고밀도 프롬프트를 생성 중..."):
                 try:
                     genai.configure(api_key=api_key)
-                    model = genai.GenerativeModel('gemini-3.1-pro-preview')
-                    prompt = f"Title:[TITLE] (Kr_En), Prompt:[PROMPT] (English, 800+ chars, no bold), Lyrics:[LYRICS] (Korean, 3min+ full version, Intro to Outro). Subject:{subject}, Style:{s_lyric_style}, Vocal:{s_vocal}, Mood:{s_mood}."
-                    res = model.generate_content(prompt).text.replace("**", "")
-                    st.session_state.gen_title = res.split("[TITLE]")[1].split("[PROMPT]")[0].strip()
-                    st.session_state.gen_prompt = res.split("[PROMPT]")[1].split("[LYRICS]")[0].strip()
-                    st.session_state.gen_lyrics = res.split("[LYRICS]")[1].strip()
+                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    
+                    # [확실함] 한국어 가사 강제 및 제목/프롬프트 최적화 명령
+                    prompt = f"""
+                    Role: Professional Songwriter & Music Producer.
+                    Task: Generate [TITLE], [PROMPT], and [LYRICS].
+                    
+                    Instructions:
+                    1. [TITLE]: Create a title as 'KoreanTitle_EnglishTitle'.
+                    2. [PROMPT]: Provide a Suno AI style prompt in English, at least 900 characters long. Include detailed audio engineering terms (wide stereo, high-fidelity, pristine mixing, spatial depth). NO BOLDING (**).
+                    3. [LYRICS]: Write a 3-8 minute full-length song structure. 
+                    4. IMPORTANT: ALL [LYRICS] MUST BE WRITTEN IN KOREAN ONLY. NO ENGLISH IN LYRICS.
+                    
+                    Input Context:
+                    Subject: {subject} / Genre: {target}-{s_genre} / Style: {s_lyric_style} / Mood: {s_mood} / Vocal: {s_vocal} / Inst: {s_inst}
+                    """
+                    
+                    res_raw = model.generate_content(prompt).text.replace("**", "")
+                    
+                    # 파싱
+                    st.session_state.gen_title = res_raw.split("[TITLE]")[1].split("[PROMPT]")[0].strip()
+                    st.session_state.gen_prompt = res_raw.split("[PROMPT]")[1].split("[LYRICS]")[0].strip()
+                    st.session_state.gen_lyrics = res_raw.split("[LYRICS]")[1].strip()
+
                 except Exception as e: st.error(f"오류: {str(e)}")
 
-        # [확실함] 방어적 렌더링 적용 (AttributeError 차단)
         if 'gen_title' in st.session_state:
-            st.code(st.session_state.gen_title)
-            st.code(st.session_state.gen_prompt)
-            st.code(st.session_state.gen_lyrics, language="markdown")
+            with st.container(border=True):
+                st.write("**1. 🎵 Title (한글_영어)**")
+                st.code(st.session_state.gen_title)
+            with st.container(border=True):
+                st.write(f"**2. 🎸 Style Prompt ({len(st.session_state.gen_prompt)}자)**")
+                st.code(st.session_state.gen_prompt)
+            with st.container(border=True):
+                st.write("**3. 📝 Lyrics (한국어 풀버전)**")
+                st.code(st.session_state.gen_lyrics, language="markdown")
