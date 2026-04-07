@@ -3,12 +3,11 @@ import time
 import utils
 
 def render_tab1():
-    st.header("📝 수노(Suno AI) 완벽 프롬프트 & 가사 생성기")
-    
     # 왼쪽 메뉴칸을 작게(1), 오른쪽 결과물 칸을 넓게(2.5) 배치
     left_col, right_col = st.columns([1, 2.5])
     
     with left_col:
+        st.subheader("📝 곡 설정 (메뉴)")
         subject = st.text_input("🎯 곡의 주제/메시지", placeholder="예: 지친 하루의 위로")
         
         # 타겟 대상 선택 (이 선택에 따라 아래 장르와 분위기 메뉴가 바뀜)
@@ -24,7 +23,7 @@ def render_tab1():
             ccm_moods = ["선택안함", "경건하고 거룩한", "평화롭고 차분한", "웅장한", "결연하고 비장한", "치유되는", "따뜻하고 포근한", "기쁘고 희망찬", "감성적인"]
             s_mood = st.selectbox("✨ 분위기", ccm_moods)
 
-        # 기존 템포, 악기, 보컬 드롭메뉴는 원본 그대로 유지
+        # 템포, 메인 악기, 보컬
         s_tempo = st.selectbox("🎵 템포", utils.suno_tempo_list)
         s_inst = st.selectbox("🎸 메인 악기", utils.suno_inst_list)
         s_vocal = st.selectbox("🎤 보컬", utils.suno_vocals_list)
@@ -35,52 +34,53 @@ def render_tab1():
                 return
             
             with st.spinner("AI 프롬프트 및 곡 구조를 계산 중입니다..."):
-                time.sleep(0.8) # 생성 딜레이 연출
+                time.sleep(0.5) 
                 
-                # 1. 제목 생성 (한글_영어 조합 픽스, 괄호 중복 제거)
+                # 1. 제목 생성 (한글_영어 조합 픽스)
                 short_subj = subject.split()[0] if subject else "은혜"
                 if target == "대중음악":
                     st.session_state.gen_title_kr = f"{short_subj}의 노래"
                     st.session_state.gen_title_en = "Song of the Heart"
                 else:
-                    st.session_state.gen_title_kr = f"{short_subj}의 빛"
-                    st.session_state.gen_title_en = "Light of Grace"
+                    st.session_state.gen_title_kr = f"{short_subj}의 은혜"
+                    st.session_state.gen_title_en = "Grace of the Lord"
 
-                # 2. 프롬프트 생성 (무조건 800자 이상 ~ 1000자 미만)
-                # 메인 악기를 강조하고 나머지 세션은 AI가 알아서 채우도록 명령 포함
+                # 2. 프롬프트 생성 (800자 이상 ~ 1000자 미만, 메인 악기 강조)
                 prompt_blocks = [
+                    f"Create a high-quality {target} track. ",
                     f"Style & Genre: {s_genre} music. ",
                     f"Emotional Mood: {s_mood}. The overall atmosphere must perfectly capture the essence of '{subject}'. ",
                     f"Tempo & Rhythm: {s_tempo}. ",
                     f"Vocals: {s_vocal} delivering a deeply emotional, expressive, and dynamic performance. ",
                     f"Main Instrument Focus: The primary driving instrument is '{s_inst}'. ",
-                    f"Session & Arrangement: The AI must automatically arrange and integrate appropriate background session instruments (such as subtle bass, drums, strings, pads, or synthesizers) that perfectly complement the main '{s_inst}' and elevate the {s_genre} style. ",
+                    f"Session & Arrangement: The AI must automatically arrange and integrate appropriate background session instruments (such as subtle bass, drums, strings, pads, or synthesizers) that perfectly complement the main '{s_inst}' and elevate the {s_genre} style without overpowering the melody. ",
                     "Song Structure constraints: Total duration must be between 2 minutes 30 seconds and 8 minutes. ",
-                    "Create a complete, fully arranged musical journey containing an [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Chorus], [Bridge], [Interlude], [Chorus], and [Outro]. ",
+                    "Create a complete, fully arranged musical journey containing an [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Chorus], [Bridge], [Guitar Solo / Interlude], [Chorus], and [Outro]. ",
                     "Pacing constraints: Keep the Intro, Interlude, and Outro concise and impactful. Do not excessively drag out instrumental sections unless the thematic focus explicitly requires it. ",
                     "Production Quality: Billboard-charting studio quality, high fidelity, pristine mixing, wide stereo image, dynamic range spanning from intimate quiet moments to expansive grand climaxes. "
                 ]
                 
-                # 800자를 넘기기 위한 고품질 디테일 묘사 추가
+                # 800자를 넘기기 위한 디테일 묘사 (엔지니어링 프롬프트)
                 detail_padding = (
                     "Ensure the transition between sections is smooth yet distinct. The Chorus should have a strong, memorable hook "
                     "and a fuller arrangement compared to the Verses. The Bridge should introduce a new chord progression "
                     "or a dynamic shift to build tension before the final explosive Chorus. The mixing should balance the "
                     "main vocal perfectly with the backing track, ensuring every lyric is understandable while the music "
                     "retains its full emotional power. Master the track to industry standards for optimal loudness, clarity, "
-                    "and rhythmic groove. Pay special attention to the harmonic richness and spatial depth."
+                    "and rhythmic groove. Pay special attention to the harmonic richness and spatial depth, allowing the "
+                    "reverb and delay to create a massive soundscape."
                 )
                 
                 final_prompt = "".join(prompt_blocks) + detail_padding
                 
                 # 혹시 800자가 안 될 경우를 대비한 추가 패딩
-                if len(final_prompt) < 800:
+                while len(final_prompt) < 800:
                     final_prompt += " Enhance the emotional resonance through careful dynamic automation and EQing."
                 
                 # 1000자 미만 컷
                 st.session_state.gen_prompt = final_prompt[:995]
 
-                # 3. 가사 생성 (2분 30초 ~ 8분 길이에 맞춘 풀버전, 전/간/후주 포함)
+                # 3. 가사 생성 (2분 30초 ~ 8분 길이에 맞춘 풀버전)
                 st.session_state.gen_lyrics = f"""[Intro]
 (간결하고 임팩트 있는 {s_inst} 전주)
 
@@ -137,11 +137,12 @@ def render_tab1():
 
     # 오른쪽 결과물 출력 프레임 (넓은 영역)
     with right_col:
+        st.subheader("✨ 생성 결과물")
         if st.session_state.get('gen_title_kr'):
-            st.write("### 📌 생성 결과물")
             
             with st.container(border=True):
                 st.write("**1. 🎵 Title (한글_영어)**")
+                # 이상한 괄호 없이 깔끔하게 출력
                 st.code(f"{st.session_state.gen_title_kr}_{st.session_state.gen_title_en}")
             
             with st.container(border=True):
@@ -150,5 +151,6 @@ def render_tab1():
             
             with st.container(border=True):
                 st.write("**3. 📝 Lyrics (전/간/후주 포함 풀버전 가사)**")
-                # 가사가 길기 때문에 text_area를 써서 복사하기 쉽게 만듭니다.
-                st.text_area("가사 복사", st.session_state.gen_lyrics, height=400, label_visibility="collapsed")
+                st.text_area("가사 복사", st.session_state.gen_lyrics, height=450, label_visibility="collapsed")
+        else:
+            st.info("👈 왼쪽에서 곡 설정을 마친 후 '수노 전용 풀버전 생성' 버튼을 눌러주세요.")
