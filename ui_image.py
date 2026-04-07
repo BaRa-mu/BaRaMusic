@@ -2,65 +2,64 @@ import streamlit as st
 import os
 import google.generativeai as genai
 
-# [확실함] API 키 로컬 로드 함수
 def get_api_key():
     if os.path.exists("api_key.txt"):
         with open("api_key.txt", "r") as f: return f.read().strip()
     return ""
 
 def render_tab2():
-    # [수정] 간격을 20% 넓히고 겹침을 방지하는 중립적 CSS
+    # [확실함] 가장 좁았던 상태(-15px)에서 미세하게(+3px)만 넓힌 초정밀 CSS
     st.markdown("""
         <style>
-        /* 위젯 간 수직 간격을 12px로 확대 (기존 대비 20% 증가) */
-        [data-testid="stVerticalBlock"] > div { margin-top: 2px !important; margin-bottom: 10px !important; }
+        /* 수직 간격을 극도로 압축 (-10px) */
+        [data-testid="stVerticalBlock"] > div { margin-top: -10px !important; margin-bottom: 2px !important; }
         
-        /* 입력창 및 드롭다운 높이 26px로 최적화 */
+        /* 모든 입력창 높이를 32px 슬림하게 고정 */
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
-            min-height: 35px !important; font-size: 14px !important;
+            min-height: 32px !important; height: 32px !important; font-size: 13px !important;
             padding: 0px 10px !important;
         }
         
-        /* 가사 입력창 높이 고정 */
-        .stTextArea textarea { height: 150px !important; }
+        /* 가사창 높이만 예외적으로 확보 */
+        .stTextArea textarea { height: 130px !important; }
         
-        /* 라벨 여백 상향 조정 (7px) */
+        /* 라벨을 박스에 바짝 붙임 */
         .stSelectbox label, .stTextArea label, .stTextInput label {
-            font-size: 13px !important; font-weight: 600 !important;
-            margin-bottom: 5px !important; color: #444 !important; padding-top: 7px !important;
+            font-size: 11px !important; font-weight: 600 !important;
+            margin-bottom: -10px !important; color: #444 !important; padding-top: 6px !important;
         }
+        
+        /* 라디오 버튼 밀도 상향 */
+        div[role="radiogroup"] { gap: 12px !important; margin-top: -4px !important; }
         </style>
     """, unsafe_allow_html=True)
 
     l_col, r_col = st.columns([1, 2.3])
     
     with l_col:
-        st.write("### 🖼️ 앨범 아트 설정")
+        st.write("### 🖼️ 이미지 설정")
         api_key = get_api_key()
 
-        # 1. 음원 업로드 (파일명 파싱)
-        aud_file = st.file_uploader("🎧 음원 업로드 (파일명 기반 제목 자동입력)", type=['mp3', 'wav'])
+        # 1. 음원 업로드
+        aud_file = st.file_uploader("🎧 음원 업로드 (파일명 파싱)", type=['mp3', 'wav'])
         
-        # [안전] .get()을 사용하여 AttributeError 원천 차단
-        t_kr = st.session_state.get('gen_title_kr', "")
-        t_en = st.session_state.get('gen_title_en', "")
-        
+        t_kr, t_en = "", ""
         if aud_file:
             base_name = os.path.splitext(aud_file.name)[0]
             parts = base_name.split('_')
             t_kr = parts[0]
             t_en = parts[1] if len(parts) > 1 else ""
 
-        # 제목 한 줄 배치
+        # [확실함] 한 줄 배치 유지
         col_t1, col_t2 = st.columns(2)
         with col_t1: title_kr = st.text_input("📌 한글 제목", value=t_kr)
         with col_t2: title_en = st.text_input("📌 영문 제목", value=t_en)
 
-        # 가사 수동 입력 (가사 탭 데이터 자동 연동)
+        # [확실함] 가사 수동 입력 (기존 데이터 연동)
         lyrics_val = st.session_state.get('gen_lyrics', "")
-        context_lyrics = st.text_area("📝 기반 가사 컨텍스트", value=lyrics_val, height=150)
+        context_lyrics = st.text_area("📝 가사 입력/수정", value=lyrics_val)
 
-        # 전문 옵션 (기존 유지)
+        # 15종 옵션 드롭다운 (간격 압축 적용됨)
         styles = ["사실적인 사진", "시네마틱 3D", "유화", "수채화", "판타지 일러스트", "미니멀리즘", "빈티지", "사이버펑크", "초현실주의", "팝 아트", "잉크 드로잉", "스팀펑크", "픽셀 아트", "고딕", "우키요에"]
         s_style = st.selectbox("🎨 예술 스타일", styles)
 
@@ -73,32 +72,25 @@ def render_tab2():
         s_ratio = st.selectbox("📐 화면 비율", ["1:1 (Square)", "16:9 (Wide)", "9:16 (Vertical)"])
 
         st.divider()
-        gen_btn = st.button("🚀 이미지 프롬프트 생성", type="primary", use_container_width=True)
+        gen_btn = st.button("🚀 프롬프트 생성", type="primary", use_container_width=True)
 
     with r_col:
         st.subheader("✨ 생성 결과물")
-        
         if gen_btn:
-            if not api_key: st.error("가사 탭에서 API 키를 먼저 저장하세요."); return
-            if not context_lyrics: st.error("분석할 가사가 없습니다."); return
-            
-            with st.spinner("AI가 비주얼 무드를 분석 중입니다..."):
+            if not api_key: st.error("가사 탭에서 키를 저장하세요."); return
+            if not context_lyrics: st.error("가사를 입력하세요."); return
+            with st.spinner("분석 중..."):
                 try:
                     genai.configure(api_key=api_key)
                     model = genai.GenerativeModel('gemini-3.1-pro-preview')
-                    prompt = f"Music Visual Director Role. Title: {title_kr}_{title_en}. Lyrics: {context_lyrics[:800]}. Style: {s_style}, Lighting: {s_light}, Camera: {s_cam}, Ratio: {s_ratio}. Generate 1000-char English prompt. No bold (**)."
-                    
+                    prompt = f"Music Visual Director. Title:{title_kr}_{title_en}. Lyrics:{context_lyrics[:800]}. Style:{s_style}, Lighting:{s_light}, Camera:{s_cam}, Ratio:{s_ratio}. 1000-char English prompt. No bold(**)."
                     res = model.generate_content(prompt).text.replace("**", "")
                     st.session_state.gen_img_prompt = res
-                except Exception as e: st.error(f"생성 실패: {str(e)}")
+                except Exception as e: st.error(f"실패: {str(e)}")
 
-        # [확실함] 세션 상태 체크 후 안전하게 출력
-        if 'gen_img_prompt' in st.session_state:
+        if st.session_state.get('gen_img_prompt'):
             with st.container(border=True):
-                st.write("**1. 🎵 곡 제목**")
-                st.code(f"{title_kr}_{title_en}")
-            with st.container(border=True):
-                st.write("**2. 🎨 AI 이미지 생성용 영문 프롬프트**")
-                st.code(st.session_state.get('gen_img_prompt', ""), language="markdown")
+                st.write("**🎨 AI 이미지 생성용 프롬프트**")
+                st.code(st.session_state.get('gen_img_prompt'), language="markdown")
         else:
-            st.info("👈 설정을 마친 후 '생성' 버튼을 눌러주세요.")
+            st.info("👈 설정을 마친 후 생성 버튼을 눌러주세요.")
