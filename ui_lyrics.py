@@ -20,7 +20,7 @@ def render_tab1():
     st.markdown("""
         <style>
         /* 위젯 사이의 적절한 간격 확보 (답답함 해소) */
-        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 5px !important; }
+        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 1px !important; }
         
         /* 드롭다운 박스 높이 32px 유지 및 내부 정렬 */
         div[data-baseweb="select"] > div, .stTextInput input {
