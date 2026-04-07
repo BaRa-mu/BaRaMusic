@@ -14,7 +14,7 @@ def render_tab2():
         <style>
         [data-testid="stVerticalBlock"] > div { 
             margin-top: -10px !important;    /* 위쪽 간격 */
-            margin-bottom: -10px !important;   /* 아래쪽 간격 */
+            margin-bottom: 5px !important;   /* 아래쪽 간격 */
         }
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
             min-height: 25px !important; height: 25px !important; font-size: 13px !important;
