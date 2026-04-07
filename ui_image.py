@@ -36,7 +36,7 @@ def render_tab2():
         .stSelectbox label, .stTextArea label, .stTextInput label, .stSlider label {
             font-size: 11px !important;      /* 조절: 제목 글자 크기 */
             font-weight: 600 !important;     /* 조절: 제목 굵기 */
-            margin-bottom: -10px !important; /* 조절: 제목을 박스에 얼마나 붙일지 (낮을수록 밀착) */
+            margin-bottom: 0px !important; /* 조절: 제목을 박스에 얼마나 붙일지 (낮을수록 밀착) */
             padding-top: 6px !important;     /* 조절: 제목 위쪽 여백 */
             color: #444 !important;
         }
