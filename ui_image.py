@@ -1,9 +1,9 @@
-import st
+import streamlit as st # [확실함] ModuleNotFoundError 해결
 import os
 import random
 from PIL import Image, ImageDraw, ImageFont
 
-# --- 1. 절대 유실 금지 데이터 (각 15종 이상) [Certain] ---
+# --- 1. 절대 유실 금지 데이터 (각 15종 이상 고정) --- [Certain]
 STYLE_LIST = ["사실적인 사진", "시네마틱 3D", "유화", "수채화", "판타지", "미니멀", "빈티지", "사이버펑크", "초현실주의", "팝 아트", "잉크", "스팀펑크", "픽셀 아트", "고딕", "우키요에", "추상화", "네온 아트"]
 LIGHT_LIST = ["자연광", "안개 조명", "네온 글로우", "시네마틱", "골든 아워", "달빛", "스튜디오", "역광", "에테르 빛", "촛불", "석양", "명암", "레이저", "보케", "고대비", "네온 라이트"]
 CAM_LIST = ["광각 렌즈", "매크로 접사", "아이 레벨", "조감도", "웜즈 아이", "클로즈업", "아웃포커싱", "딥 포커스", "어안 렌즈", "드론 POV", "파노라마", "필름 카메라", "망원 렌즈", "틸트-시프트", "핸드헬드"]
@@ -23,13 +23,13 @@ def draw_overlay(width, height, kr_text, en_text, v_pos, kr_s, en_s, ls):
     y_center = height * (v_pos / 100)
     total_h = kr_s + ls + en_s
     start_y = y_center - (total_h / 2)
-    # 한글(위) / 영어(아래) 줄바꿈 구조 유지 [Certain]
+    # 한글(위) / 영어(아래) 줄바꿈 레이아웃 고정
     draw.text((width/2, start_y + (kr_s/2)), kr_text, font=f_kr, fill=(255,255,255), anchor="mm")
     draw.text((width/2, start_y + kr_s + ls + (en_s/2)), en_text, font=f_en, fill=(210,210,210), anchor="mm")
     return img
 
 def render_tab2():
-    # 간격 최소화 CSS (겹치지 않게 유지)
+    # [확실함] 간격 최소화 CSS (겹치지 않게 유지)
     st.markdown("""
         <style>
         [data-testid="stVerticalBlock"] > div { margin-top: -12px !important; margin-bottom: 0px !important; }
@@ -46,7 +46,8 @@ def render_tab2():
     
     with l_col:
         st.write("### 🖼️ 이미지 상세 설정")
-        aud_file = st.file_uploader("🎧 음원 업로드", type=['mp3', 'wav'])
+        # 음원 업로드 및 파싱
+        aud_file = st.file_uploader("🎧 음원 업로드 (한글_영어.mp3)", type=['mp3', 'wav'])
         if aud_file:
             base = os.path.splitext(aud_file.name)[0]
             if "_" in base:
@@ -72,7 +73,7 @@ def render_tab2():
         if st.session_state.get('is_generated'):
             all_imgs = st.session_state.get('imgs_data', [])
             
-            # 1. 메인 이미지 (기존 레이아웃 유지: 이미지 왼쪽, 조절바 오른쪽)
+            # 1. 메인 이미지 (상단 고정 / 우측 컨트롤러)
             m_item = all_imgs[0]
             with st.container(border=True):
                 c_i, c_c = st.columns([1.5, 1])
@@ -88,13 +89,14 @@ def render_tab2():
                     st.image(draw_overlay(m_item['w'], m_item['h'], t_kr, t_en, v_0, sk_0, se_0, ls_0), use_column_width=True)
 
             st.write("**📱 세로 규격 (9:16) - 콤팩트 배치**")
-            # 2. 세로 이미지 (3열 배치 / 조절바와 메뉴를 하단으로 이동) [Certain]
+            # 2. 세로 이미지 (3열 배치 / 컨트롤러 하단 붙임) [Certain]
             v_cols = st.columns(3)
             for idx, item in enumerate(all_imgs[1:]):
                 r_idx = idx + 1
                 with v_cols[idx % 3]:
                     with st.container(border=True):
-                        # [A] 이미지 최상단 배치
+                        # [확실함] 슬라이더와 폰트 메뉴를 이미지 하단에 배치
+                        # 이미지 먼저 렌더링 (get_font 안정성 확보 위해 세션값 참조)
                         img_v = draw_overlay(item['w'], item['h'], t_kr, t_en, 
                                              st.session_state.get(f"v_{r_idx}", 50), 
                                              st.session_state.get(f"sk_{r_idx}", 45), 
@@ -103,7 +105,7 @@ def render_tab2():
                         st.image(img_v, use_column_width=True)
                         st.write(f"<p style='font-size:10px; text-align:center;'>{item['label']}</p>", unsafe_allow_html=True)
                         
-                        # [A] 조절바와 메뉴를 모두 하단으로 이동
+                        # 하단 조절 영역
                         v = st.slider("V", 0, 100, 50, key=f"v_{r_idx}", label_visibility="collapsed")
                         sk = st.slider("KR", 10, 200, 45, key=f"sk_{r_idx}", label_visibility="collapsed")
                         se = st.slider("EN", 10, 200, 30, key=f"se_{r_idx}", label_visibility="collapsed")
