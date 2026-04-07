@@ -29,7 +29,7 @@ def render_tab2():
         /* [4] 한글제목/라벨과 입력박스 사이 간격 조절 */
         .stSelectbox label, .stTextArea label, .stTextInput label, .stSlider label {
             font-size: 11px !important; font-weight: 600 !important;
-            margin-bottom: -10px !important; /* 이 값을 조절하여 박스와 붙이거나 띄움 */
+            margin-bottom: 0px !important; /* 이 값을 조절하여 박스와 붙이거나 띄움 */
             padding-top: 6px !important;
             color: #444 !important;
         }
