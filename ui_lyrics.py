@@ -26,9 +26,9 @@ def render_tab1():
         genai.configure(api_key=user_api_key)
         
         try:
-            available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-            target_models = ['models/gemini-2.0-flash', 'models/gemini-1.5-flash', 'models/gemini-pro']
-            valid_models = [m for m in target_models if m in available_models]
+            # --- [수정된 부분: API 권한 검증 에러 우회 및 명시적 모델 지정] ---
+            valid_models = ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-pro']
+            # -------------------------------------------------------------------
             
             style_parts = []
             if s_pop != '선택안함': style_parts.append(f"Genre: {s_pop}")
@@ -55,14 +55,23 @@ def render_tab1():
                         continue
                 
                 if not res_text: 
-                    st.error("생성 실패.")
+                    st.error("생성 실패: API 키 또는 네트워크 상태를 확인하세요.")
                     return
                 
-                st.session_state.gen_title_kr = res_text.split("[TITLE_KR]")[1].split("[TITLE_EN]")[0].strip().replace('"','')
-                st.session_state.gen_title_en = res_text.split("[TITLE_EN]")[1].split("[PROMPT]")[0].strip().replace('"','')
-                st.session_state.gen_prompt = res_text.split("[PROMPT]")[1].split("[LYRICS]")[0].strip().replace("\n"," ")[:995]
-                st.session_state.gen_lyrics = res_text.split("[LYRICS]")[1].strip()
+                # --- [수정된 부분: 문자열 분할 시 IndexError 방지 및 기본값 보장] ---
+                def safe_extract(text, start_tag, end_tag=None):
+                    try:
+                        if end_tag: return text.split(start_tag)[1].split(end_tag)[0].strip().replace('"', '')
+                        return text.split(start_tag)[1].strip()
+                    except IndexError:
+                        return ""
+
+                st.session_state.gen_title_kr = safe_extract(res_text, "[TITLE_KR]", "[TITLE_EN]") or "제목없음"
+                st.session_state.gen_title_en = safe_extract(res_text, "[TITLE_EN]", "[PROMPT]") or "Untitled"
+                st.session_state.gen_prompt = safe_extract(res_text, "[PROMPT]", "[LYRICS]").replace("\n"," ")[:995] or "cinematic prompt"
+                st.session_state.gen_lyrics = safe_extract(res_text, "[LYRICS]") or res_text
                 st.success("✅ 생성 완료!")
+                # ---------------------------------------------------------------------
                 
         except Exception as e: 
             st.error(f"오류: {e}")

@@ -79,9 +79,25 @@ def design_and_save_image(width, height, prompt, seed, title_kr, title_en, font_
             img = Image.new("RGBA", (width, height), (35, 35, 40, 255))
             
     draw = ImageDraw.Draw(img)
-    font_file = font_links.get(font_choice, ("NanumGothicBold.ttf", ""))[0]
-    f_kr = ImageFont.truetype(font_file, title_size)
-    f_en = ImageFont.truetype(font_file, int(title_size * 0.65))
+    
+    # --- [수정된 부분: 시스템 내 폰트 부재 시 URL 다운로드 및 Default 폰트 폴백 적용] ---
+    font_info = font_links.get(font_choice, ("NanumGothicBold.ttf", "https://raw.githubusercontent.com/google/fonts/main/ofl/nanumgothic/NanumGothic-Bold.ttf"))
+    font_file, font_url = font_info[0], font_info[1]
+    
+    if not os.path.exists(font_file) and font_url:
+        try:
+            r = requests.get(font_url, allow_redirects=True, timeout=10)
+            with open(font_file, "wb") as f: f.write(r.content)
+        except: pass
+        
+    try:
+        f_kr = ImageFont.truetype(font_file, title_size)
+        f_en = ImageFont.truetype(font_file, int(title_size * 0.65))
+    except IOError:
+        f_kr = ImageFont.load_default()
+        f_en = ImageFont.load_default()
+    # --------------------------------------------------------------------------------
+    
     y_center = height * (y_pos_percent / 100.0)
     
     try:
@@ -116,7 +132,14 @@ def generate_video_with_lyrics(image_path, audio_clip, lyrics_text, output_path,
         return
 
     l_size = 24 if width == 720 else 22
-    l_font = ImageFont.truetype("NanumGothicBold.ttf", l_size)
+    
+    # --- [수정된 부분: 렌더링 폰트 호출 시 예외 처리 적용] ---
+    try:
+        l_font = ImageFont.truetype("NanumGothicBold.ttf", l_size)
+    except IOError:
+        l_font = ImageFont.load_default()
+    # --------------------------------------------------------
+
     step_y = int(l_size * 2.0)
     w_top = int(height * 0.60) if width == 720 else int(height * 0.40)
     w_bottom = int(height * 0.95)
