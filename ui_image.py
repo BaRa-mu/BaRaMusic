@@ -17,7 +17,7 @@ def render_tab2():
             margin-bottom: 0px !important;   /* 아래쪽 간격 */
         }
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
-            min-height: 25px !important; height: 25px !important; font-size: 13px !important;
+            min-height: 0px !important; height: 0px !important; font-size: 13px !important;
         }
         .stTextArea textarea { height: 120px !important; } /* 가사창 전용 높이 */
         .stSelectbox label, .stTextArea label, .stTextInput label, .stSlider label {
