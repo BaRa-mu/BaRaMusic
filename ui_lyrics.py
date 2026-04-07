@@ -3,14 +3,14 @@ import time
 import utils
 
 def render_tab1():
-    # 왼쪽 메뉴칸을 작게(1), 오른쪽 결과물 칸을 넓게(2.5) 배치
+    # 메뉴칸(1)과 결과물 칸(2.5) 비율 유지
     left_col, right_col = st.columns([1, 2.5])
     
     with left_col:
         st.subheader("📝 곡 설정 (메뉴)")
         subject = st.text_input("🎯 곡의 주제/메시지", placeholder="예: 지친 하루의 위로")
         
-        # 타겟 대상 선택
+        # 타겟 카테고리 선택
         target = st.radio("🎯 타겟 카테고리", ["대중음악", "⛪ CCM"], horizontal=True)
         
         if target == "대중음악":
@@ -25,10 +25,18 @@ def render_tab1():
         s_tempo = st.selectbox("🎵 템포", utils.suno_tempo_list)
         s_inst = st.selectbox("🎸 메인 악기", utils.suno_inst_list)
         
-        # --- 🎤 보컬 상세 설정 (업그레이드 완료) ---
+        # --- 🎤 보컬 선택 (버튼 스타일로 변경) ---
         st.divider()
-        vocal_type = st.selectbox("🎤 보컬 형태", ["선택안함 (가사없는 경음악)", "남자", "여자", "듀엣", "합창"])
+        st.write("**🎤 보컬 유형 선택**")
+        # 버튼형 선택을 위해 radio의 horizontal 옵션 사용
+        vocal_type = st.radio(
+            "보컬 카테고리", 
+            ["경음악", "남자", "여자", "듀엣", "합창"], 
+            horizontal=True,
+            label_visibility="collapsed"
+        )
         
+        # 각 카테고리별 20개 이상의 풍성한 리스트 (합창 10개)
         male_vocals = [
             "감미로운 남성 팝 보컬", "허스키하고 짙은 호소력의 남성", "파워풀한 고음의 남성 락 보컬", "부드러운 어쿠스틱 인디 남성", 
             "그루브 넘치는 R&B 남성", "중후하고 따뜻한 바리톤", "소울풀한 가스펠 남성 보컬", "맑고 청아한 미성의 남성", 
@@ -59,15 +67,15 @@ def render_tab1():
             "경쾌하고 희망찬 청년 연합 찬양대", "속삭이는 듯한 몽환적인 백그라운드 합창"
         ]
 
-        # 선택한 카테고리에 맞춰 디테일 드롭메뉴 출력
+        # 버튼 선택 결과에 따라 세부 드롭메뉴 표시
         if vocal_type == "남자":
-            s_vocal = st.selectbox("👨‍🎤 보컬 스타일 (남자)", male_vocals)
+            s_vocal = st.selectbox("👨‍🎤 남성 보컬 상세 스타일", male_vocals)
         elif vocal_type == "여자":
-            s_vocal = st.selectbox("👩‍🎤 보컬 스타일 (여자)", female_vocals)
+            s_vocal = st.selectbox("👩‍🎤 여성 보컬 상세 스타일", female_vocals)
         elif vocal_type == "듀엣":
-            s_vocal = st.selectbox("🧑‍🤝‍🧑 보컬 스타일 (듀엣)", duet_vocals)
+            s_vocal = st.selectbox("🧑‍🤝‍🧑 듀엣 상세 스타일", duet_vocals)
         elif vocal_type == "합창":
-            s_vocal = st.selectbox("👨‍👩‍👧‍👦 보컬 스타일 (합창)", choir_vocals)
+            s_vocal = st.selectbox("👨‍👩‍👧‍👦 합창 상세 스타일", choir_vocals)
         else:
             s_vocal = "Instrumental"
 
@@ -78,133 +86,49 @@ def render_tab1():
                 st.error("주제를 먼저 입력해 주세요.")
                 return
             
-            with st.spinner("AI 프롬프트 및 곡 구조를 계산 중입니다..."):
+            with st.spinner("AI가 곡 구성을 설계 중입니다..."):
                 time.sleep(0.5) 
                 
                 # 1. 제목 생성
                 short_subj = subject.split()[0] if subject else "은혜"
-                if target == "대중음악":
-                    st.session_state.gen_title_kr = f"{short_subj}의 노래"
-                    st.session_state.gen_title_en = "Song of the Heart"
-                else:
-                    st.session_state.gen_title_kr = f"{short_subj}의 은혜"
-                    st.session_state.gen_title_en = "Grace of the Lord"
+                st.session_state.gen_title_kr = f"{short_subj}의 노래" if target=="대중음악" else f"{short_subj}의 은혜"
+                st.session_state.gen_title_en = "Song of Heart" if target=="대중음악" else "Grace of Lord"
 
-                # 2. 프롬프트 생성 (경음악 여부에 따른 보컬 지시어 분리)
-                if s_vocal == "Instrumental":
-                    vocal_prompt = "Vocals: None. This is a purely instrumental track. Absolutely no vocals, no singing, no voices. "
-                else:
-                    vocal_prompt = f"Vocals: {s_vocal} delivering a deeply emotional, expressive, and dynamic performance. "
-
+                # 2. 프롬프트 생성 (800~1000자 최적화)
+                v_prompt = "Vocals: None. Pure Instrumental track." if s_vocal == "Instrumental" else f"Vocals: {s_vocal}."
+                
                 prompt_blocks = [
-                    f"Create a high-quality {target} track. ",
-                    f"Style & Genre: {s_genre} music. ",
-                    f"Emotional Mood: {s_mood}. The overall atmosphere must perfectly capture the essence of '{subject}'. ",
-                    f"Tempo & Rhythm: {s_tempo}. ",
-                    vocal_prompt,
-                    f"Main Instrument Focus: The primary driving instrument is '{s_inst}'. ",
-                    f"Session & Arrangement: The AI must automatically arrange and integrate appropriate background session instruments that perfectly complement the main '{s_inst}' without overpowering the melody. ",
-                    "Song Structure constraints: Total duration must be between 2 minutes 30 seconds and 8 minutes. ",
-                    "Create a complete, fully arranged musical journey containing an [Intro], [Verse 1], [Pre-Chorus], [Chorus], [Verse 2], [Chorus], [Bridge], [Guitar Solo / Interlude], [Chorus], and [Outro]. ",
-                    "Pacing constraints: Keep the Intro, Interlude, and Outro concise and impactful. ",
-                    "Production Quality: Billboard-charting studio quality, high fidelity, pristine mixing, wide stereo image. "
+                    f"Create a professional {target} track. Genre: {s_genre}. Mood: {s_mood}. Tempo: {s_tempo}. ",
+                    f"{v_prompt} Main Instrument: Focus heavily on the '{s_inst}'. ",
+                    "Arrangement: AI should automatically provide full session support (bass, drums, strings, etc.) that complements the main instrument. ",
+                    "Structure: Include [Intro], [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Interlude], [Chorus], [Outro]. ",
+                    "Duration: 2:30 to 8:00 minutes. Keep transitions smooth and impactful. ",
+                    "Quality: Studio grade, wide stereo, cinematic depth, high fidelity, polished mix. "
                 ]
                 
-                # 800자 이상 확보용 디테일
-                detail_padding = (
-                    "Ensure the transition between sections is smooth yet distinct. The Chorus should have a strong, memorable hook "
-                    "and a fuller arrangement compared to the Verses. The Bridge should introduce a new chord progression "
-                    "or a dynamic shift to build tension before the final explosive Chorus. The mixing should balance the "
-                    "lead elements perfectly with the backing track. Master the track to industry standards for optimal loudness, clarity, "
-                    "and rhythmic groove. Pay special attention to the harmonic richness and spatial depth, allowing the "
-                    "reverb and delay to create a massive soundscape."
-                )
-                
-                final_prompt = "".join(prompt_blocks) + detail_padding
-                while len(final_prompt) < 800:
-                    final_prompt += " Enhance the emotional resonance through careful dynamic automation and EQing."
-                st.session_state.gen_prompt = final_prompt[:995]
+                padding = "Master this track for optimal clarity and emotional resonance. Ensure the arrangement dynamically builds toward the final chorus. Use professional audio engineering techniques to balance the soundscape perfectly. "
+                final_p = "".join(prompt_blocks) + padding
+                while len(final_p) < 850: final_p += "Enhance the spatial richness and harmonic balance. "
+                st.session_state.gen_prompt = final_p[:995]
 
-                # 3. 가사 생성 (경음악일 경우 가사를 뽑지 않음)
+                # 3. 가사 생성 (경음악 여부 반영)
                 if s_vocal == "Instrumental":
-                    st.session_state.gen_lyrics = """[Intro]
-(간결하고 임팩트 있는 전주)
-
-[Instrumental]
-(가사 없는 경음악 트랙입니다. 편안하게 연주를 감상하세요.)
-
-[Outro]
-(여운을 남기는 짧고 깔끔한 후주)"""
+                    st.session_state.gen_lyrics = "[Intro]\n(전주)\n\n[Instrumental Section]\n(연주곡입니다)\n\n[Outro]\n(후주)"
                 else:
-                    st.session_state.gen_lyrics = f"""[Intro]
-(간결하고 임팩트 있는 {s_inst} 전주)
-
-[Verse 1]
-조용히 눈을 감고 생각에 잠겨
-{subject}의 의미를 되새겨보는 시간
-바람에 스치는 작은 기억들마저
-오늘따라 내 마음을 두드리네
-
-[Pre-Chorus]
-조금씩 선명해지는 저 빛을 향해
-떨리는 두 손을 모아보네
-
-[Chorus]
-내 안에 가득 찬 이 마음을 노래해
-어둠을 지나 마침내 찾은 이 길
-아무리 먼 곳이라도 닿을 수 있게
-나의 모든 걸 담아 부르리
-
-[Verse 2]
-때로는 흔들리고 넘어진다 해도
-다시 일어설 힘이 내게 있으니
-서툰 걸음으로 걷는 이 순간마저
-소중한 나의 내일이 될 테니까
-
-[Pre-Chorus]
-조금씩 선명해지는 저 빛을 향해
-떨리는 두 손을 모아보네
-
-[Chorus]
-내 안에 가득 찬 이 마음을 노래해
-어둠을 지나 마침내 찾은 이 길
-아무리 먼 곳이라도 닿을 수 있게
-나의 모든 걸 담아 부르리
-
-[Bridge]
-수많은 날들이 지나고 변한다 해도
-가슴 속 깊이 새겨진 이 마음은
-영원히 꺼지지 않는 불꽃처럼
-나를 숨 쉬게 하네
-
-[Interlude]
-(분위기를 고조시키는 짧은 {s_inst} 간주)
-
-[Chorus]
-내 안에 가득 찬 이 마음을 노래해
-어둠을 지나 마침내 찾은 이 길
-아무리 먼 곳이라도 닿을 수 있게
-나의 모든 걸 담아 부르리
-
-[Outro]
-영원히 빛나리
-(여운을 남기는 짧고 깔끔한 후주)"""
+                    st.session_state.gen_lyrics = f"[Intro]\n(짧은 {s_inst} 전주)\n\n[Verse 1]\n{subject}의 마음을 담아 노래해\n[Chorus]\n영원한 평안 속에 거하리\n[Verse 2]\n새로운 힘을 내게 주시네\n[Bridge]\n(간주 후 고조되는 부분)\n[Chorus]\n영원한 평안 속에 거하리\n[Outro]\n(깔끔한 후주)"
 
     # 오른쪽 결과물 출력 프레임
     with right_col:
         st.subheader("✨ 생성 결과물")
         if st.session_state.get('gen_title_kr'):
-            
             with st.container(border=True):
                 st.write("**1. 🎵 Title (한글_영어)**")
                 st.code(f"{st.session_state.gen_title_kr}_{st.session_state.gen_title_en}")
-            
             with st.container(border=True):
-                st.write(f"**2. 🎸 Style of Music (프롬프트 / 길이: {len(st.session_state.gen_prompt)}자)**")
+                st.write(f"**2. 🎸 Style of Music (프롬프트 / {len(st.session_state.gen_prompt)}자)**")
                 st.code(st.session_state.gen_prompt)
-            
             with st.container(border=True):
                 st.write("**3. 📝 Lyrics (전/간/후주 포함)**")
                 st.text_area("가사 복사", st.session_state.gen_lyrics, height=450, label_visibility="collapsed")
         else:
-            st.info("👈 왼쪽에서 곡 설정을 마친 후 '수노 전용 풀버전 생성' 버튼을 눌러주세요.")
+            st.info("👈 왼쪽 메뉴에서 설정을 마친 후 생성 버튼을 눌러주세요.")
