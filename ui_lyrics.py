@@ -102,5 +102,4 @@ def render_tab1():
         with col2:
             if st.button("🎬 3. 영상 렌더링 탭으로 이동", use_container_width=True):
                 st.info("상단의 '3. 영상 렌더링' 탭을 클릭해 주세요.")
-    else:
-        st.info("👈 왼쪽에서 설정을 마치고 생성 버튼을 눌러주세요.")
+   
