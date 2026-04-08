@@ -21,7 +21,7 @@ st.markdown("""
     }
     /* 라디오 버튼 항목 사이 간격 조정 */
     div.row-widget.stRadio > div {
-        gap: 15px !important;
+        gap: 5px !important;
     }
     </style>
 """, unsafe_allow_html=True)
