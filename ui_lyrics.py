@@ -67,14 +67,19 @@ def render_tab1():
     if st.session_state.get('res_title'):
         st.title(f"🎵 {st.session_state.res_title}")
         st.divider()
-        st.subheader("📝 곡 가사 및 구성")
-        st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
-        st.text_area("가사 수정 및 편집", value=st.session_state.res_lyrics, height=600, key="lyrics_final_view")
+        st.subheader("📝 곡 가사 비교 및 편집")
+        col_l, col_r = st.columns(2)
+        with col_l:
+            st.markdown("**[생성된 원본 가사]**")
+            st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
+        with col_r:
+            st.markdown("**[가사 수정 및 편집]**")
+            st.text_area("편집창", value=st.session_state.res_lyrics, height=800, key="lyrics_final_view", label_visibility="collapsed")
         if st.button("📋 가사 복사"):
             st.code(st.session_state.res_lyrics, language="text")
         st.divider()
         st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
-        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=700, key="prompt_final_view")
+        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=800, key="prompt_final_view")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_prompt, language="text")
     else:
