@@ -1,56 +1,176 @@
 import streamlit as st
+import os
+import time
 
-# [데이터 영역]
-MOODS = {
-    "CCM": ["동화같은", "직설적인", "서정적인", "웅장한", "담백한", "경쾌한", "신비로운", "따뜻한", "강렬한", "애절한", "평화로운", "거룩한", "희망찬", "비장한", "소박한"],
-    "대중음악": ["동화같은", "직설적인", "서정적인", "도시적인", "복고풍의", "몽환적인", "열정적인", "감미로운", "냉소적인", "통통튀는", "아련한", "우울한", "청량한", "세련된", "투박한"]
-}
-CCM_GENRES = ["현대적 워십", "모던 락 찬양", "어쿠스틱 포크", "블랙 가스펠", "클래식 찬송가", "컨템포러리 찬양", "블루스 워십", "컨트리 가스펠", "콰이어 앤섬", "묵상 연주곡", "소울 찬양", "펑키 워십", "인디 포크 찬양", "보사노바 워십", "재즈 찬양", "아이리시 워십", "블루그래스 가스펠", "챔버 오케스트라 찬양", "장엄한 교향곡풍", "켈틱 워십"]
-POP_GENRES = ["스탠다드 발라드", "어쿠스틱 포크", "모던 락", "블루스 팝", "소울 알앤비", "시티 팝", "펑크(Funk)", "7080 포크", "90년대 감성 발라드", "보사노바 팝", "정통 재즈", "스윙 재즈", "라틴 팝", "탱고", "칸초네", "샹송", "챔버 팝", "모던 포크", "컨트리 팝", "재즈 발라드"]
-SONG_ATMOSPHERES = ["밝고 희망찬", "차분하고 정적인", "웅장하고 힘있는", "슬프고 서정적인", "몽환적이고 신비로운", "긴박하고 긴장된", "따뜻하고 포근한", "거칠고 날카로운", "우아하고 고전적인", "애절하고 가슴아픈", "담백하고 소박한", "세련되고 도시적인", "목가적이고 평화로운", "장엄하고 거룩한", "신나고 에너제틱한"]
-VOCALS = {
-    "남성": ["허스키하며 애절한 저음 남성", "맑고 투명한 미성의 고음 남성", "거칠고 파워풀한 샤우팅 락 보컬 남성", "담백하고 절제된 감성의 포크 보컬 남성", "호소력 짙고 비브라토가 깊은 발라드 남성", "속삭이는 듯 공기 반 소리 반의 감성 남성", "성량이 풍부하고 웅장한 바리톤 남성", "리듬감이 좋고 비음이 섞인 팝 보컬 남성", "소울풀하고 그루비한 R&B 보컬 남성", "정갈하고 깨끗한 성가대풍 테너 남성", "세련되고 도회적인 시티팝 보컬 남성", "묵직하고 신뢰감을 주는 중저음 남성", "날카롭고 엣지 있는 하이톤 펑크 보컬 남성", "아련하고 슬픔에 젖은 미성 보컬 남성", "에너지 넘치고 밝은 텐션의 팝 보컬 남성", "톤이 높고 섬세한 감정선의 소년미 남성", "중후하고 울림이 깊은 신사적인 보컬 남성", "블루지하고 끈적한 음색의 재즈 보컬 남성", "뮤지컬 발성으로 극적인 표현의 남성 보컬", "정통 트로트 감성의 꺾기가 있는 남성 보컬"],
-    "여성": ["청아하고 이슬 같은 맑은 고음 여성", "매혹적이고 허스키한 재즈 보컬 여성", "성량이 폭발적인 소울풀 디바 여성", "가냘프고 애처로운 느낌의 미성 여성", "몽환적이고 신비로운 분위기의 음색 여성", "단단하고 힘 있는 중저음 발라드 여성", "속삭이는 듯 감미로운 보사노바 보컬 여성", "톡톡 튀고 귀여운 하이톤의 아이돌 보컬 여성", "소울이 깊고 허스키한 감성의 R&B 여성", "고전적이고 우아한 성악 발성의 소프라노 여성", "도도하고 차가운 느낌의 시티팝 보컬 여성", "따스하고 정감이 넘치는 엄마 같은 보컬 여성", "샤프하고 공격적인 톤의 락 보컬 여성", "정통 발라드에 최적화된 호소력 짙은 여성", "그루비하고 세련된 팝 재즈 보컬 여성", "투명한 감성의 인디 포크 보컬 여성", "중후한 깊이감을 가진 알토 보컬 여성", "연극적인 표현력이 풍부한 보컬 여성", "비음이 섞여 애교 섞인 감성의 보컬 여성", "민요적 울림이 있는 한국적 보컬 여성"],
-    "듀엣": ["서로 다른 음색의 애틋한 남녀 듀엣", "완벽한 하모니의 동성 2인조 보컬", "서로 경쟁하듯 주고받는 강렬한 듀엣", "속삭이며 대화하는 듯한 연인 컨셉 듀엣", "웅장하고 압도적인 합창 위주의 듀엣", "메아리치듯 감정이 이어지는 연쇄적 듀엣", "소박하고 따뜻한 어쿠스틱 듀오", "톤 차이가 극명하여 대비가 확실한 듀엣", "오랜 시간 맞춰온 듯 완벽한 유니즌 듀엣", "뮤지컬 넘버 같은 극적인 전개의 듀엣", "한 명은 랩, 한 명은 보컬로 조화된 듀엣", "어른과 아이의 목소리가 섞인 세대간 듀엣", "상반된 감정을 노래하는 갈등 구조의 듀엣", "슬픈 이별 장면을 연기하는 듯한 듀엣", "밝고 희망찬 멜로디의 팝 듀오", "블루지하고 소울 넘치는 흑인 음악풍 듀엣", "담백한 기타 반주에 얹은 소박한 듀엣", "가성과 진성을 오가는 화려한 화음 듀엣", "전통적인 찬송가풍의 남녀 화답 듀엣", "세련된 비트 위의 도회적인 감성 듀엣"]
-}
-INSTRUMENTS = ["신디사이저", "그랜드 피아노", "어쿠스틱 기타", "일렉 기타", "첼로", "바이올린", "하프", "플룻", "파이프 오르간", "우쿨렐레", "색소폰"]
-SESSION_MAP = {"신디사이저": "아르페지에이터 시퀀스, 딥 베이스 신스, 공간감 있는 앰비언트 패드, 리버브 드럼", "그랜드 피아노": "바이올린 섹션, 부드러운 패드, 콘트라베이스", "어쿠스틱 기타": "카혼, 젬베, 쉐이커, 가벼운 베이스", "일렉 기타": "드럼 세트, 락 베이스, 신디사이저", "첼로": "피아노 반주, 비올라, 소프라노 스트링", "바이올린": "하프 오케스트레이션, 팀파니, 첼로", "하프": "플룻, 윈드 차임, 앰비언트 패드", "플룻": "어쿠스틱 기타, 가벼운 퍼커션", "파이프 오르간": "브라스 섹션, 콰이어(합창), 오케스트라 드럼", "우쿨렐레": "쉐이커, 우드블록, 가벼운 어쿠스틱 베이스", "색소폰": "재즈 드럼, 업라이트 베이스, 일렉 피아노"}
+def render_tab2():
+    # [1. 데이터 영역: 지시하신 대로 절대 고정]
+    STYLES = ["극사실주의 시네마틱", "디즈니 애니메이션 풍", "고전 유화 스타일", "투명한 수채화", "네온 사이버펑크", "신비로운 판타지 일러스트", "정밀한 연필 스케치", "현대적 3D 렌더링", "레트로 픽셀 아트", "추상적 미니멀리즘", "고딕 호러 스타일", "화려한 바로크 풍", "초현실주의 예술", "잉크 워시 수묵화", "팝아트 스타일"]
+    MOODS = ["웅장하고 압도적인", "따뜻하고 포근한", "차가운 도시의", "몽환적이고 신비로운", "어두운 비장미", "밝고 희망찬", "빈티지하고 아련한", "평화롭고 정적인", "강렬하고 폭발적인", "애절하고 슬픈", "거룩하고 성스러운", "에너지 넘치는", "고독하고 쓸쓸한", "우아하고 고전적인", "신선하고 청량한"]
+    LIGHTINGS = ["시네마틱 골든아워", "스튜디오 조명", "달빛 아래", "네온사인", "아침 햇살", "스포트라이트", "안개 조명", "촛불 빛", "화산 반사", "역광(Rim Light)", "하이키 조명", "로우키 조명", "창가 사선 빛", "오로라 광원", "심해의 푸른 빛"]
+    CAMERAS = ["와이드 파노라마", "매크로 샷", "버즈아이 뷰", "웜즈아이 뷰", "아이레벨", "더치 앵글", "오버더숄더", "피쉬아이", "아웃포커싱", "깊은 피사계 심도", "로모그래피", "소프트 포커스", "로우 앵글", "하이 앵글", "시점 샷(POV)"]
 
-def render_tab1():
+    K_FONTS = [
+        {"name": "나눔손글씨 붓", "family": "Nanum Brush Script"}, {"name": "나눔손글씨 펜", "family": "Nanum Pen Script"},
+        {"name": "독도체", "family": "Dokdo"}, {"name": "검은고딕", "family": "Black Han Sans"},
+        {"name": "궁서체", "family": "Gungsuh"}, {"name": "바탕체", "family": "Batang"},
+        {"name": "제주 명조", "family": "Jeju Myeongjo"}, {"name": "카페24 써라운드", "family": "Cafe24 Surround"},
+        {"name": "야놀자 야체", "family": "Yanolja Yache"}, {"name": "빙그레체", "family": "Binggrae"},
+        {"name": "코트라 희망체", "family": "KOTRA HOPE"}, {"name": "어그로체", "family": "Aggro"},
+        {"name": "HSS새로운봄", "family": "HSS New Spring"}, {"name": "가나초콜릿", "family": "Gana Chocolate"},
+        {"name": "배민 도현", "family": "Bemin DoHyeon"}
+    ]
+    E_FONTS = [
+        {"name": "Great Vibes", "family": "Great Vibes"}, {"name": "Dancing Script", "family": "Dancing Script"},
+        {"name": "Pacifico", "family": "Pacifico"}, {"name": "Satisfy", "family": "Satisfy"},
+        {"name": "Courgette", "family": "Courgette"}, {"name": "Lobster", "family": "Lobster"},
+        {"name": "Permanent Marker", "family": "Permanent Marker"}, {"name": "Sacramento", "family": "Sacramento"},
+        {"name": "Yellowtail", "family": "Yellowtail"}, {"name": "Cookie", "family": "Cookie"},
+        {"name": "Damion", "family": "Damion"}, {"name": "Handlee", "family": "Handlee"},
+        {"name": "Merienda", "family": "Merienda"}, {"name": "Kaushan Script", "family": "Kaushan Script"},
+        {"name": "Mrs Saint Delafield", "family": "Mrs Saint Delafield"}
+    ]
+
+    EFFECTS = ["강력한 화이트 글로우", "네온 핑크 광채", "블랙 쉐도우", "골든 샤인", "스모키 안개", "3D 입체", "크롬 메탈릭", "불꽃 효과", "얼음 파편", "글리치 노이즈", "유리 굴절", "외부 광채", "더블 그림자", "무지개 그라데이션", "다크 글로우"]
+
+    # [2. 파싱 로직 콜백 함수 정의]
+    def handle_parsing():
+        if st.session_state.img_audio_up_final:
+            fname = os.path.splitext(st.session_state.img_audio_up_final.name)[0]
+            if "_" in fname:
+                k_p, e_p = fname.split("_", 1)
+                st.session_state['k_sync_val'] = k_p
+                st.session_state['e_sync_val'] = e_p
+            else:
+                st.session_state['k_sync_val'] = fname
+                st.session_state['e_sync_val'] = fname
+
+    # [3. 사이드바 구성]
     with st.sidebar:
-        st.subheader("🎵 음악 상세 설정")
-        subject = st.text_input("💡 곡 주제", placeholder="곡 주제 입력", key="l_subject")
-        target = st.radio("🎯 타깃", ["CCM", "대중음악"], horizontal=True, key="genre_sel")
-        lyric_mood = st.selectbox(f"✨ 가사 분위기", MOODS[target], key="mood_sel")
-        genre = st.selectbox(f"🎸 장르", CCM_GENRES if target == "CCM" else POP_GENRES, key="genre_list_sel")
-        song_atm = st.selectbox("🌈 곡 분위기 상세", SONG_ATMOSPHERES, key="song_atm_sel")
-        tempo = st.select_slider("⏱️ 템포", options=["매우 느림", "느림", "보통", "빠름", "매우 빠름"], value="보통")
-        v_type = st.radio("🎤 보컬 유형", ["남성", "여성", "듀엣"], horizontal=True, key="v_type_sel")
-        vocal_style = st.selectbox(f"🗣️ {v_type} 스타일 상세", VOCALS[v_type], key="v_style_sel")
-        main_inst = st.selectbox("🎹 메인 악기 선택", INSTRUMENTS, key="inst_sel")
         st.divider()
-        gen_btn = st.button("🚀 AI 가사 및 세션 구성 시작", type="primary", use_container_width=True)
+        st.subheader("📂 음원 파일 업로드")
+        # on_change 콜백을 사용하여 업로드 즉시 파싱 수행
+        st.file_uploader("Browse files", type=["mp3", "wav", "m4a"], key="img_audio_up_final", 
+                         on_change=handle_parsing, label_visibility="collapsed")
 
-    # --- 출력 화면 ---
-    if gen_btn or st.session_state.get('res_title'):
-        if gen_btn:
-            st.session_state.res_title = f"{subject}_Heavenly_Visions"
-            st.session_state.res_lyrics = f"[Verse 1]\n{subject}의 향기가 새벽 공기에 실려오네\n캄캄한 밤을 지나 찾아온 소망의 빛줄기\n평안한 안식 속에 새로운 꿈을 꾸게 하시네\n\n[Chorus]\n오 영원한 그 사랑 {lyric_mood}한 찬양의 선율\n우리 모두 하나 되어 기쁨의 노래 부르세"
-            st.session_state.res_prompt = f"Professional {genre} track for {target}. Mood: {lyric_mood}, {song_atm}. Tempo: {tempo}. Lead {v_type} vocal with high-end soundstage for '{subject}'."
-
-        st.subheader("🏷️ 생성 제목 (한글_영어제목)")
-        st.code(st.session_state.res_title, language="text")
+        st.divider()
+        st.subheader("🏷️ 이미지 제목 (자동 파싱)")
+        # 세션 스테이트의 값을 텍스트 인풋에 강제 할당
+        k_title = st.text_input("한글 제목", value=st.session_state.get('k_sync_val', ""), key="k_title_final_input")
+        e_title = st.text_input("영어 제목", value=st.session_state.get('e_sync_val', ""), key="e_title_final_input")
         
         st.divider()
-        st.subheader("📝 생성 가사 (직접 수정)")
-        st.text_area("Lyric Box", value=st.session_state.res_lyrics, height=400, key="lyrics_final_view", label_visibility="collapsed")
-        if st.button("📋 가사 복사"):
-            st.code(st.session_state.res_lyrics, language="text")
-            
+        st.subheader("🎨 이미지 생성 상세 설정")
+        st.selectbox("🎭 화풍", STYLES, key="sel_style")
+        st.selectbox("✨ 분위기", MOODS, key="sel_mood")
+        st.selectbox("💡 조명", LIGHTINGS, key="sel_light")
+        st.selectbox("📹 카메라", CAMERAS, key="sel_cam")
+        
         st.divider()
-        st.subheader(f"🛠️ AI 제작 프롬프트")
-        st.text_area("Prompt Box", value=st.session_state.res_prompt, height=200, key="prompt_final_view", label_visibility="collapsed")
-        if st.button("📋 프롬프트 복사"):
-            st.code(st.session_state.res_prompt, language="text")
+        st.subheader("🎬 쇼츠 이미지 구성")
+        # 슬라이더 대신 숫자 입력 사용
+        shorts_count = st.number_input("쇼츠 이미지 개수 (0~5)", 0, 5, 0, step=1, key="shorts_num_in")
+        
+        st.divider()
+        gen_btn = st.button("🚀 이미지 생성 시작", type="primary", use_container_width=True)
+
+    # --- [4. CSS: 회색 배경, 520px 고정, 드롭다운 폰트 스타일 미리보기] ---
+    all_f = K_FONTS + E_FONTS
+    f_imports = "".join([f"@import url('https://fonts.googleapis.com/css2?family={f['family'].replace(' ', '+')}&display=swap');" for f in all_f])
+    
+    st.markdown(f"""
+        <style>
+        {f_imports}
+        
+        /* 드롭다운 내 폰트 스타일 실시간 미리보기 */
+        div[data-baseweb="select"] li {{ font-size: 1.1rem !important; padding: 10px !important; }}
+        { "".join([f'li[id*="option-{i}"] {{ font-family: "{K_FONTS[i]["family"]}", cursive !important; }}' for i in range(len(K_FONTS))]) }
+        { "".join([f'li[id*="option-{len(K_FONTS)+i}"] {{ font-family: "{E_FONTS[i]["family"]}", cursive !important; }}' for i in range(len(E_FONTS))]) }
+
+        /* 미리보기 프레임: 긴 면 520px 고정 및 회색 배경(#808080) */
+        .preview-canvas {{
+            position: relative;
+            background-color: #808080; 
+            margin: 0 auto 30px auto;
+            border-radius: 12px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center; align-items: center;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }}
+        .dim-16-9 {{ width: 520px; height: 292.5px; }}
+        .dim-9-16 {{ width: 292.5px; height: 520px; }}
+
+        /* 제목 효과 (화이트 글로우 + 드롭쉐도우) */
+        .title-eff {{
+            color: white; text-align: center; line-height: 1.2; pointer-events: none; z-index: 10;
+            text-shadow: 0 0 15px rgba(255,255,255,1), 0 0 30px rgba(255,255,255,0.5), 2px 2px 5px rgba(0,0,0,1);
+        }}
+        
+        /* 효과 상세 옵션 */
+        .glow-white {{ text-shadow: 0 0 20px #fff, 2px 2px 4px #000; }}
+        .glow-neon {{ text-shadow: 0 0 15px #ff00ff, 0 0 30px #ff00ff, 2px 2px 2px #000; }}
+        .shadow-deep {{ text-shadow: 5px 5px 12px rgba(0,0,0,1); }}
+
+        /* 다운로드 호버 */
+        .dl-hover {{
+            position: absolute; top: 15px; right: 15px;
+            background: rgba(0,0,0,0.85); color: white; padding: 6px 14px;
+            border-radius: 5px; opacity: 0; transition: 0.3s; z-index: 20;
+        }}
+        .preview-canvas:hover .dl-hover {{ opacity: 1; }}
+        </style>
+    """, unsafe_allow_html=True)
+
+    # --- [5. 화면 출력 영역] ---
+    if not st.session_state.get('img_gen_done') and not gen_btn:
+        # [생성 전] 회색 배경 및 제목 중앙 배치
+        st.markdown(f"""
+            <div class="preview-canvas dim-16-9">
+                <div class="title-eff">
+                    <div style="font-family: 'Aggro', cursive; font-size: 45px;">{k_title if k_title else '한글제목'}</div>
+                    <div style="font-family: 'Great Vibes', cursive; font-size: 28px; margin-top: 20px;">{e_title if e_title else 'English Title'}</div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
     else:
-        st.info("👈 왼쪽에서 설정을 마치고 생성 버튼을 눌러주세요.")
+        if gen_btn:
+            with st.spinner("이미지 생성 중..."): time.sleep(1.5)
+            st.session_state.img_gen_done = True
+
+        def render_preview_unit(label, key_id, ratio_class):
+            st.markdown(f"### {label}")
+            with st.container():
+                c1, c2, c3, c4 = st.columns(4)
+                with c1:
+                    kf_idx = st.selectbox("한글 폰트", range(len(K_FONTS)), format_func=lambda x: K_FONTS[x]["name"], index=11, key=f"kf_{key_id}")
+                    ef_idx = st.selectbox("English Font", range(len(E_FONTS)), format_func=lambda x: E_FONTS[x]["name"], index=0, key=f"ef_{key_id}")
+                with c2:
+                    ks = st.number_input("한글 크기", 10, 150, 55, key=f"ks_{key_id}")
+                    es = st.number_input("영어 크기", 10, 150, 35, key=f"es_{key_id}")
+                with c3:
+                    px = st.number_input("좌우 위치 (%)", 0, 100, 50, key=f"x_{key_id}")
+                    py = st.number_input("상하 위치 (%)", 0, 100, 50, key=f"y_{key_id}")
+                with c4:
+                    spacing = st.number_input("제목 간격", 0, 200, 20, key=f"sp_{key_id}")
+                    eff_sel = st.selectbox("제목 효과 선택", EFFECTS, key=f"eff_{key_id}")
+
+            eff_class = "glow-white" if "글로우" in eff_sel else "glow-neon" if "네온" in eff_sel else "shadow-deep"
+
+            st.markdown(f"""
+                <div class="preview-canvas {ratio_class}">
+                    <div class="dl-hover">⬇️ Download</div>
+                    <img src="https://via.placeholder.com/1280x720.png?text={label}" style="width:100%; height:100%; object-fit:cover;">
+                    <div class="title-eff {eff_class}" style="position: absolute; left: {px}%; top: {py}%; transform: translate(-50%, -50%);">
+                        <div style="font-family: '{K_FONTS[kf_idx]['family']}'; font-size: {ks}px;">{k_title}</div>
+                        <div style="font-family: '{E_FONTS[ef_idx]['family']}'; font-size: {es}px; margin-top: {spacing}px;">{e_title}</div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+            st.divider()
+
+        # 규격별 출력 (숏츠 9:16 적용)
+        render_preview_unit("유튜브 메인 (16:9)", "yt", "dim-16-9")
+        render_preview_unit("틱톡 (9:16)", "tk", "dim-9-16")
+        if shorts_count > 0:
+            for i in range(shorts_count):
+                render_preview_unit(f"쇼츠 #{i+1} (9:16)", f"sh_{i}", "dim-9-16")
