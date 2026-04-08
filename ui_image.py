@@ -1,12 +1,8 @@
 import streamlit as st
 
 def render_tab2():
-    # 모든 입력을 왼쪽 사이드바에 배치
+    # [왼쪽 사이드바] 모든 설정 메뉴 배치 (주제란 삭제)
     with st.sidebar:
-        st.divider()
-        st.subheader("💡 이미지 주제")
-        img_subject = st.text_input("주제 입력", placeholder="이미지의 핵심 주제 입력", key="i_subject", label_visibility="collapsed")
-        
         st.divider()
         st.subheader("📂 참고 파일 업로드")
         uploaded_file = st.file_uploader("Browse files", type=["png", "jpg", "jpeg"], key="img_uploader", label_visibility="collapsed")
@@ -32,25 +28,31 @@ def render_tab2():
         st.divider()
         gen_img_btn = st.button("🚀 AI 이미지 프롬프트 생성", type="primary", use_container_width=True)
 
-    # --- 오른쪽 메인 화면: 결과 출력 ---
+    # --- [오른쪽 메인 화면: 결과물 분리 출력] ---
     if gen_img_btn or st.session_state.get('img_ready'):
         st.session_state.img_ready = True
         
-        # 제목: 한글_영어제목 형식
-        res_title_head = img_title_input if img_title_input else img_subject
-        st.session_state.res_img_title = f"{res_title_head}_Visual_Art_Concept"
-        st.session_state.res_img_prompt = (
-            f"A high-quality masterpiece of {img_subject}. Style: {img_style}. Mood: {img_mood}. "
-            f"Optimized for {img_ratio} ratio. Cinematic lighting, 8k, professional digital art."
-        )
-
-        st.subheader("🏷️ 확정 이미지 제목 (한글_영어제목)")
-        st.code(st.session_state.res_img_title, language="text")
+        # 제목 분리 처리 로직
+        res_k_title = img_title_input if img_title_input else "제목없음"
+        res_e_title = "Heavenly_Grace_Artwork" # 시스템 자동 생성 영어 제목
+        
+        st.subheader("🇰🇷 한글 제목")
+        st.code(res_k_title, language="text")
+        
+        st.subheader("🇺🇸 영어 제목")
+        st.code(res_e_title, language="text")
         
         st.divider()
+        
+        # 프롬프트 생성 (입력된 제목 기반)
+        st.session_state.res_img_prompt = (
+            f"A high-quality masterpiece of {res_k_title}. Style: {img_style}. Mood: {img_mood}. "
+            f"Aspect ratio: {img_ratio}. Cinematic lighting, 8k resolution, professional digital art."
+        )
+
         st.subheader("🖼️ 생성 이미지 프롬프트")
-        st.text_area("Image Prompt Box", value=st.session_state.res_img_prompt, height=250, key="img_prompt_view", label_visibility="collapsed")
+        st.text_area("Image Prompt Box", value=st.session_state.res_img_prompt, height=200, key="img_prompt_view", label_visibility="collapsed")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_img_prompt, language="text")
     else:
-        st.info("👈 왼쪽 사이드바에서 주제를 입력하고 설정을 마친 뒤 생성 버튼을 눌러주세요.")
+        st.info("👈 왼쪽 사이드바에서 제목을 입력하고 설정을 마친 뒤 생성 버튼을 눌러주세요.")
