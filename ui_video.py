@@ -1,7 +1,13 @@
 import streamlit as st
 
 def render_tab3():
-    # [왼쪽 사이드바] 모든 설정 메뉴 배치 (주제란 삭제)
+    # [1. 세션 상태 초기화]
+    if 'vid_ready' not in st.session_state:
+        st.session_state['vid_ready'] = False
+    if 'res_vid_prompt' not in st.session_state:
+        st.session_state['res_vid_prompt'] = ""
+
+    # [2. 왼쪽 사이드바 구성]
     with st.sidebar:
         st.divider()
         st.subheader("📂 참고 파일 업로드")
@@ -33,9 +39,9 @@ def render_tab3():
         st.divider()
         gen_vid_btn = st.button("🚀 AI 영상 프롬프트 생성", type="primary", use_container_width=True)
 
-    # --- [오른쪽 메인 화면: 결과물 분리 출력] ---
-    if gen_vid_btn or st.session_state.get('vid_ready'):
-        st.session_state.vid_ready = True
+    # --- [3. 오른쪽 메인 화면: 결과물 분리 출력] ---
+    if gen_vid_btn or st.session_state['vid_ready']:
+        st.session_state['vid_ready'] = True
         
         # 제목 분리 처리
         res_k_vid_title = vid_title_input if vid_title_input else "제목없음"
@@ -49,15 +55,16 @@ def render_tab3():
         
         st.divider()
         
-        # 프롬프트 생성
-        st.session_state.res_vid_prompt = (
+        # 프롬프트 생성 (딕셔너리 방식으로 저장)
+        st.session_state['res_vid_prompt'] = (
             f"Cinematic {vid_length} video of {res_k_vid_title}. Style: {vid_style}. "
             f"Motion: {vid_motion}, Camera: {vid_camera}. High-end production quality, 4k."
         )
 
         st.subheader("📽️ AI 영상 제작 프롬프트")
-        st.text_area("Video Prompt Box", value=st.session_state.res_vid_prompt, height=200, key="vid_prompt_view", label_visibility="collapsed")
+        st.text_area("Video Prompt Box", value=st.session_state['res_vid_prompt'], height=200, key="vid_prompt_view", label_visibility="collapsed")
+        
         if st.button("📋 프롬프트 복사"):
-            st.code(st.session_state.res_vid_prompt, language="text")
+            st.code(st.session_state['res_vid_prompt'], language="text")
     else:
         st.info("👈 왼쪽 사이드바에서 설정을 마친 뒤 생성 버튼을 눌러주세요.")
