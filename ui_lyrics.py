@@ -23,6 +23,8 @@ def render_tab1():
         /* 탭 왼쪽 위 정렬 */
         .stTabs [data-baseweb="tab-list"] { justify-content: flex-start !important; gap: 20px !important; }
         .block-container { padding-top: 1rem !important; }
+        /* 가사 편집창 강제 높이 확장 CSS */
+        .stTextArea textarea { height: 1500px !important; font-size: 16px !important; line-height: 1.6 !important; }
         /* 사이드바 스타일 보존 */
         [data-testid="stSidebar"] div[data-baseweb="select"] > div, [data-testid="stSidebar"] .stTextInput input { height: 38px !important; font-size: 14px !important; }
         [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stRadio label { font-size: 12px !important; font-weight: 600 !important; margin-bottom: 4px !important; }
@@ -44,8 +46,8 @@ def render_tab1():
         strict_end = st.checkbox("가사 종료 시 즉시 곡 종료", value=True, key="strict_end_check")
 
         if st.button("🚀 AI 가사 및 세션 구성 시작", type="primary", use_container_width=True):
-            # [결과 잠금] 한글제목_영어제목 형식 엄격 적용
-            st.session_state.res_title = "은혜의항해_VoyageOfGrace"
+            # [결과 잠금] 한글제목_영어제목 형식 고정
+            st.session_state.res_title = "하늘의소망_HopeOfHeaven"
             
             # [가사 생성] 3분~8분 분량 확보를 위해 대형 4절 구조 확장
             ending_tags = "\n\n[Outro]\n(Natural fade out to silence)\n[END]\n[Hard Stop]\n[Silence]"
@@ -105,21 +107,20 @@ def render_tab1():
 
     # --- [오른쪽 메인 출력 영역] ---
     if st.session_state.get('res_title'):
-        # [수정] 제목 출력 및 전용 복사 버튼
-        st.subheader("🏷️ 곡 제목 (한글_영어)")
+        # [수정] 곡에 맞는 [한글제목_영어제목] 출력 및 복사 기능 전면 배치
+        st.subheader("🏷️ 곡 제목 (한글_영어제목)")
         st.code(st.session_state.res_title, language="text")
         
         st.divider()
-        # [수정] 가사 칸 하나로 통합 및 높이 최대화 (1000px)
-        st.subheader("📝 생성 가사 (편집 및 수정)")
-        st.text_area("가사 본문", value=st.session_state.res_lyrics, height=1000, key="lyrics_final_view", help="여기서 가사를 자유롭게 수정하세요.")
-        if st.button("📋 가사 전체 복사"):
+        # [수정] 비교 칸 삭제, 1500px 이상의 거대 텍스트 에어리어로 가사 즉시 수정창 구현
+        st.subheader("📝 곡 가사 (즉시 수정 및 편집)")
+        st.text_area("Lyric Editor", value=st.session_state.res_lyrics, key="lyrics_final_view", label_visibility="collapsed")
+        if st.button("📋 가사 복사"):
             st.code(st.session_state.res_lyrics, language="text")
             
         st.divider()
-        # [수정] 프롬프트 칸 높이 확대 (600px)
         st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
-        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=600, key="prompt_final_view")
+        st.text_area("Prompt Box", value=st.session_state.res_prompt, height=600, key="prompt_final_view")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_prompt, language="text")
     else:
