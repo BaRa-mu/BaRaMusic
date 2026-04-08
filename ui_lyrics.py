@@ -35,56 +35,38 @@ def render_tab1():
         strict_end = st.checkbox("가사 종료 시 즉시 곡 종료", value=True, key="strict_end_check")
 
         if st.button("🚀 AI 가사 및 세션 구성 시작", type="primary", use_container_width=True):
--           st.session_state.res_title = f"{subject}_English_Version_Track"
-+           # [수정] 제목: 한글_영어제목 형식 엄격 적용 (가상의 영어 제목 생성 포함)
-+           st.session_state.res_title = f"{subject}_The_Graceful_Melody_of_Faith"
+            # [결과 잠금 로직] 세션 스테이트에 모든 결과물 저장
+            st.session_state.res_title = f"{subject}_Heavenly_Harmony_Melody"
             
             # 가사 본문 생성
             ending_tags = "\n\n[Outro]\n(Natural fade out to silence)\n[END]\n[Hard Stop]\n[Silence]"
--           st.session_state.res_lyrics = f"[Verse 1]\n{subject}의 은혜가 내 영혼에 가득히\n험한 세상 속에서도 주님만 의지하리\n평화로운 그 음성이 내 맘에 울려 퍼질 때\n새로운 생명의 길을 나 기쁘게 걸어가리\n\n[Chorus]\n오 할렐루야 영원하신 주님의 그 사랑\n{lyric_mood}한 무드 속에서 내 영혼 춤추네\n{song_atm}한 선율이 온 땅에 가득 울릴 때\n{subject}의 영광을 온 세상에 선포하리" + ending_tags
-+           # [수정] 가사 가독성 개선 및 종료 태그 보존
-+           st.session_state.res_lyrics = f"[Verse 1]\n{subject}의 빛이 나의 삶을 비추고\n고단한 하루 끝에 평안을 주시네\n주님과 걷는 이 길은 언제나 즐겁고\n나의 영혼은 기쁨으로 충만하네\n\n[Chorus]\n오 주여 영원히 찬양 받으소서\n{lyric_mood}한 분위기 속에 우리 예배해\n{song_atm}한 선율이 하늘 문을 열 때\n{subject}의 사랑을 온 땅에 노래하리" + ending_tags
+            st.session_state.res_lyrics = f"[Verse 1]\n{subject}의 은혜가 내 영혼에 가득히\n험한 세상 속에서도 주님만 의지하리\n평화로운 그 음성이 내 맘에 울려 퍼질 때\n새로운 생명의 길을 나 기쁘게 걸어가리\n\n[Chorus]\n오 할렐루야 영원하신 주님의 그 사랑\n{lyric_mood}한 무드 속에서 내 영혼 춤추네\n{song_atm}한 선율이 온 땅에 가득 울릴 때\n{subject}의 영광을 온 세상에 선포하리" + ending_tags
 
--           # 프롬프트 조합 (700~1000자 범위 엄격 보정)
-+           # [수정] 프롬프트 700~1000자 확보를 위한 상세 기술 묘사 강화
+            # 프롬프트 조합 (700~1000자 강제)
             session_info = SESSION_MAP.get(main_inst, "Full Orchestration")
             p_style = f"A professional high-fidelity {genre} track specifically produced for the {target} market. The overall mood is established by combining {lyric_mood} themes with a {song_atm} musical landscape. Tempo is set to {tempo} to match the emotional pacing. "
             p_vocal = f"Vocal Performance: This production features a {vocal_style} through a {v_type} lead performance. The recording requires meticulous vocal processing with high-end studio gear to achieve crystalline clarity and deep emotional resonance. Harmonies should be rich, professional, and stylistic of the {genre} tradition. "
             p_inst = f"Instrumentation and Soundstage: The arrangement is anchored by {main_inst} providing the primary harmonic and melodic foundation. This is augmented by a carefully curated session including {session_info}. The stereo field must be wide, immersive, and balanced across all frequency spectrums. "
-            p_tech = "Engineering Specs: 24-bit studio quality, professional mastering with warm analog-style saturation on the low-end and silky-smooth air in the high-frequency range. Dynamic range should be expressive, supporting the song's natural emotional peaks and valleys without any clipping. "
+            p_tech = "Engineering Specs: 24-bit studio quality, professional mastering with warm analog-style saturation on the low-end and silky-smooth air in the high-frequency range. Dynamic range should be carefully managed to allow the emotional bridge to soar before landing on a powerful, celebratory final chorus. "
             p_end = f"Structural Constraint: { 'CRITICAL: NO looping and NO repetition of song sections once the lyrics conclude. The track MUST end naturally and definitively into absolute silence following the [END] tag. No second song or hidden tracks.' if strict_end else 'Standard end.' } "
-+           p_detail = f"Deep Narrative Analysis: This piece is dedicated to the theme of '{subject}', requiring the {main_inst} to interact organically with the {vocal_style}. The orchestration of {session_info} must support the {lyric_mood} narrative without overpowering the central message. The {genre} characteristics should be authentic, providing a fairytale-like yet grounded atmosphere that resonates deeply with {target} listeners. The arrangement must build tension during the bridge and release it into a highly celebratory final chorus, ensuring every note serves the core theme of '{subject}'. Every sonic element, from the transients of the {main_inst} to the subtle decay of the reverb, must be polished to a radio-ready standard. Ensure that the silence at the end is hard-coded and definitive, reflecting the completion of the story told through these lyrics."
+            p_detail = f"Detailed Arrangement Analysis: The arrangement for '{subject}' must prioritize a sophisticated and highly nuanced harmonic progression that resonates with {target} listeners. The {main_inst} should not just accompany, but lead with a rhythmic and lyrical foundation that integrates perfectly with the {vocal_style}. The sonic environment must mirror a high-end, world-class studio environment, ensuring total absence of digital artifacts, clipping, or monotonous loops. Every individual instrument in the {session_info} should be placed strategically within the 3D stereo field, providing a lush, immersive depth. The dynamic range should be carefully managed to allow the emotional bridge to soar before landing on a powerful, celebratory final chorus. Meticulous care should be taken to respect the {genre} foundations while injecting a unique, modern energy. The transition from the {lyric_mood} mood to the {song_atm} atmosphere must feel organic and emotionally earned. Final check: the song MUST terminate into absolute silence immediately after the concluding lyrics, with no remnants of the instrumental track or melodic restarts. This is a one-take, definitive performance."
             
--           full_p = (p_style + p_vocal + p_inst + p_tech + p_end + p_detail).strip()
--           # 750자 미만일 경우 추가 설명으로 보정
--           if len(full_p) < 750:
--               full_p += " Professional sound engineering is required to balance the frequency spectrum, ensuring a warm low-end and crystal-clear highs for a polished radio-ready finish."
--           st.session_state.res_prompt = full_p[:1000]
-+           # [수정] 프롬프트 결합 및 길이 제한 (700~1000자 보장)
-+           full_p = (p_style + p_vocal + p_inst + p_tech + p_end + p_detail).strip()
-+           st.session_state.res_prompt = full_p[:1000]
+            full_p = (p_style + p_vocal + p_inst + p_tech + p_end + p_detail).strip()
+            if len(full_p) < 750:
+                full_p += " Professional sound engineering is required to balance the frequency spectrum, ensuring a warm low-end and crystal-clear highs for a polished radio-ready finish."
+            st.session_state.res_prompt = full_p[:1000]
 
-    # --- [오른쪽 메인 출력부] ---
+    # --- [오른쪽 메인 출력 영역] ---
     if st.session_state.get('res_title'):
--       # 분석 대신 제목 바로 출력
--       st.title(f"🎵 {st.session_state.res_title}")
-+       # [수정] 분석 텍스트 제거하고 제목 가독성 극대화
-+       st.title(f"🎵 {st.session_state.res_title}")
-         
+        st.title(f"🎵 {st.session_state.res_title}")
+        
         st.divider()
--       st.subheader("📝 생성 가사")
--       st.write(st.session_state.res_lyrics) # 직접 출력하여 시인성 확보
--       st.text_area("가사 편집창", value=st.session_state.res_lyrics, height=200, key="lyrics_edit_box")
-+       # [수정] 가사 출력 방식 변경 (가시성 확보)
-+       st.subheader("📝 곡 가사 및 구성")
-+       st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
-+       st.text_area("수정 및 편집", value=st.session_state.res_lyrics, height=250, key="lyrics_final_view")
-         
+        st.subheader("📝 곡 가사 및 구성")
+        st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
+        st.text_area("수정 및 편집", value=st.session_state.res_lyrics, height=250, key="lyrics_final_view")
+        
         st.divider()
--       st.subheader(f"🛠️ AI 생성 프롬프트 ({len(st.session_state.res_prompt)}자)")
--       st.text_area("프롬프트 복사", value=st.session_state.res_prompt, height=300, key="prompt_copy_box")
-+       # [수정] 프롬프트 결과물 고정
-+       st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
-+       st.text_area("프롬프트 복사 (700~1000자)", value=st.session_state.res_prompt, height=350, key="prompt_final_view")
+        st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
+        st.text_area("프롬프트 복사 (700~1000자)", value=st.session_state.res_prompt, height=350, key="prompt_final_view")
     else:
         st.info("👈 왼쪽에서 설정을 마치고 생성 버튼을 눌러주세요.")
