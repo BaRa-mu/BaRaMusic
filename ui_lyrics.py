@@ -110,7 +110,7 @@ def render_tab1():
         st.subheader("📝 생성 가사 (즉시 수정 및 편집)")
         lyrics = st.session_state.res_lyrics
         line_count = lyrics.count("\n") + 1
-        dynamic_height = min(1500, max(800, line_count * 25))
+        dynamic_height = min(800, max(1500, line_count * 25))
         st.text_area("가사 본문", value=lyrics, height=dynamic_height, key="lyrics_final_view")
         if st.button("📋 가사 복사"):
             st.code(st.session_state.res_lyrics, language="text")
