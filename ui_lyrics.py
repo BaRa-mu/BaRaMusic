@@ -17,13 +17,11 @@ INSTRUMENTS = ["신디사이저", "그랜드 피아노", "어쿠스틱 기타", 
 SESSION_MAP = {"신디사이저": "아르페지에이터 시퀀스, 딥 베이스 신스, 공간감 있는 앰비언트 패드, 리버브 드럼", "그랜드 피아노": "바이올린 섹션, 부드러운 패드, 콘트라베이스", "어쿠스틱 기타": "카혼, 젬베, 쉐이커, 가벼운 베이스", "일렉 기타": "드럼 세트, 락 베이스, 신디사이저", "첼로": "피아노 반주, 비올라, 소프라노 스트링", "바이올린": "하프 오케스트레이션, 팀파니, 첼로", "하프": "플룻, 윈드 차임, 앰비언트 패드", "플룻": "어쿠스틱 기타, 가벼운 퍼커션", "파이프 오르간": "브라스 섹션, 콰이어(합창), 오케스트라 드럼", "우쿨렐레": "쉐이커, 우드블록, 가벼운 어쿠스틱 베이스", "색소폰": "재즈 드럼, 업라이트 베이스, 일렉 피아노"}
 
 def render_tab1():
-    # [수정] 사이드바 CSS 및 상단 탭 왼쪽 정렬 CSS 추가
+    # 사이드바 CSS 및 상단 탭 정렬 CSS
     st.markdown("""
         <style>
-        /* 탭 왼쪽 위 정렬 */
         .stTabs [data-baseweb="tab-list"] { justify-content: flex-start !important; gap: 20px !important; }
         .block-container { padding-top: 1rem !important; }
-        /* 사이드바 스타일 보존 */
         [data-testid="stSidebar"] div[data-baseweb="select"] > div, [data-testid="stSidebar"] .stTextInput input { height: 38px !important; font-size: 14px !important; }
         [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stRadio label { font-size: 12px !important; font-weight: 600 !important; margin-bottom: 4px !important; }
         </style>
@@ -44,14 +42,17 @@ def render_tab1():
         strict_end = st.checkbox("가사 종료 시 즉시 곡 종료", value=True, key="strict_end_check")
 
         if st.button("🚀 AI 가사 및 세션 구성 시작", type="primary", use_container_width=True):
-            # [결과 잠금 로직] 제목: 한글_영어제목 형식 엄격 적용
-            st.session_state.res_title = f"{subject}_Divine_Grace_and_Eternal_Hope"
+-           # [결과 잠금 로직] 제목: 한글_영어제목 형식
+-           st.session_state.res_title = f"{subject}_Divine_Grace_and_Eternal_Hope"
++           # [수정] 제목: 한글_영어제목 형식 (주제 기반의 실제 영어 제목 생성 시뮬레이션)
++           eng_ref = "".join([c for c in subject if c.isalnum()])[:15]
++           st.session_state.res_title = f"{subject}_{eng_ref}_Electronic_Praise_Project"
             
-            # 가사 본문 생성
+            # 가사 생성
             ending_tags = "\n\n[Outro]\n(Natural fade out to silence)\n[END]\n[Hard Stop]\n[Silence]"
             st.session_state.res_lyrics = f"[Verse 1]\n{subject}의 은혜가 내 영혼에 가득히\n험한 세상 속에서도 주님만 의지하리\n평화로운 그 음성이 내 맘에 울려 퍼질 때\n새로운 생명의 길을 나 기쁘게 걸어가리\n\n[Chorus]\n오 할렐루야 영원하신 주님의 그 사랑\n{lyric_mood}한 무드 속에서 내 영혼 춤추네\n{song_atm}한 선율이 온 땅에 가득 울릴 때\n{subject}의 영광을 온 세상에 선포하리" + ending_tags
 
-            # 프롬프트 조합 (700~1000자 확보를 위한 상세 기술 및 감성 묘사 대폭 보강)
+            # 프롬프트 조합 (700~1000자 확보용 기술 묘사 보강)
             session_info = SESSION_MAP.get(main_inst, "Full Orchestration")
             p_style = f"A professional high-fidelity {genre} track specifically produced for the {target} market. The overall mood is established by combining {lyric_mood} themes with a {song_atm} musical landscape. Tempo is set to {tempo} to match the emotional pacing. "
             p_vocal = f"Vocal Performance: This production features a {vocal_style} through a {v_type} lead performance. The recording requires meticulous vocal processing with high-end studio gear to achieve crystalline clarity and deep emotional resonance. Harmonies should be rich, professional, and stylistic of the {genre} tradition. "
@@ -65,7 +66,11 @@ def render_tab1():
 
     # --- [오른쪽 메인 출력 영역] ---
     if st.session_state.get('res_title'):
-        st.title(f"🎵 {st.session_state.res_title}")
+-       st.title(f"🎵 {st.session_state.res_title}")
++       # [수정] 제목 및 제목 복사 기능 추가
++       st.subheader("🏷️ 생성 제목 (한글_영어)")
++       st.code(st.session_state.res_title, language="text")
++       
         st.divider()
         st.subheader("📝 곡 가사 비교 및 편집")
         col_l, col_r = st.columns(2)
@@ -74,12 +79,12 @@ def render_tab1():
             st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
         with col_r:
             st.markdown("**[가사 수정 및 편집]**")
-            st.text_area("편집창", value=st.session_state.res_lyrics, height=800, key="lyrics_final_view", label_visibility="collapsed")
+            st.text_area("편집창", value=st.session_state.res_lyrics, height=1200, key="lyrics_final_view", label_visibility="collapsed")
         if st.button("📋 가사 복사"):
             st.code(st.session_state.res_lyrics, language="text")
         st.divider()
         st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
-        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=800, key="prompt_final_view")
+        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=1200, key="prompt_final_view")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_prompt, language="text")
     else:
