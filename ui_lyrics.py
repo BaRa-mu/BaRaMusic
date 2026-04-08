@@ -63,10 +63,16 @@ def render_tab1():
         st.divider()
         st.subheader("📝 곡 가사 및 구성")
         st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
-        st.text_area("수정 및 편집", value=st.session_state.res_lyrics, height=250, key="lyrics_final_view")
+-       st.text_area("수정 및 편집", value=st.session_state.res_lyrics, height=250, key="lyrics_final_view")
++       st.text_area("수정 및 편집", value=st.session_state.res_lyrics, height=500, key="lyrics_final_view")
++       if st.button("📋 가사 복사하기"):
++           st.code(st.session_state.res_lyrics, language="text")
         
         st.divider()
         st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
-        st.text_area("프롬프트 복사 (700~1000자)", value=st.session_state.res_prompt, height=350, key="prompt_final_view")
+-       st.text_area("프롬프트 복사 (700~1000자)", value=st.session_state.res_prompt, height=350, key="prompt_final_view")
++       st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=600, key="prompt_final_view")
++       if st.button("📋 프롬프트 복사하기"):
++           st.code(st.session_state.res_prompt, language="text")
     else:
         st.info("👈 왼쪽에서 설정을 마치고 생성 버튼을 눌러주세요.")
