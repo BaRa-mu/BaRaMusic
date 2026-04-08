@@ -1,43 +1,26 @@
 import streamlit as st
-import os
-import random
-from PIL import Image, ImageDraw, ImageFont
 
-# --- [확실함] 1. 절대 유실 금지 데이터 (각 15종 이상 고정) ---
-STYLE_LIST = ["사실적인 사진", "시네마틱 3D", "유화", "수채화", "판타지", "미니멀", "빈티지", "사이버펑크", "초현실주의", "팝 아트", "잉크", "스팀펑크", "픽셀 아트", "고딕", "우키요에", "추상화", "네온 아트"]
-LIGHT_LIST = ["자연광", "안개 조명", "네온 글로우", "시네마틱", "골든 아워", "달빛", "스튜디오", "역광", "에테르 빛", "촛불", "석양", "명암", "레이저", "보케", "고대비", "네온 라이트"]
-CAM_LIST = ["광각 렌즈", "매크로 접사", "아이 레벨", "조감도", "웜즈 아이", "클로즈업", "아웃포커싱", "딥 포커스", "어안 렌즈", "드론 POV", "파노라마", "필름 카메라", "망원 렌즈", "틸트-시프트", "핸드헬드"]
-KR_FONTS = ["나눔붓", "나눔펜", "상상꽃길", "배민연성", "교보손글씨", "나눔바른펜", "안동엄마", "상상신비", "이순신굵은", "배민한나", "제주한라산", "나눔라운드", "상상금도끼", "안성탕면", "tvN즐거운"]
-EN_FONTS = ["Great Vibes", "Dancing Script", "Pacifico", "Allura", "Sacramento", "Arizonia", "Pinyon Script", "Parisienne", "Cookie", "Kaushan Script", "Tangerine", "Clicker Script", "Playball", "Alex Brush", "Monsieur"]
+# --- [확실함] 1. 장르별 가사 스타일 데이터 (각 15종 이상) ---
+CCM_STYLES = [
+    "묵상과 고백", "선포와 찬양", "회개와 결단", "동행과 인도", "십자가의 사랑", 
+    "성령의 임재", "소망과 위로", "경배와 영광", "제자의 길", "중보와 간구", 
+    "은혜의 강가", "어린이 찬양", "현대적 워십", "고전적 찬송가풍", "새벽녘 기도"
+]
 
-def get_font(size):
-    paths = ["/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf", "C:/Windows/Fonts/malgun.ttf", "/System/Library/Fonts/Supplemental/AppleGothic.ttf", "NanumGothicBold.ttf"]
-    for p in paths:
-        if os.path.exists(p): return ImageFont.truetype(p, size)
-    return ImageFont.load_default()
+POP_STYLES = [
+    "애절한 이별", "풋풋한 첫사랑", "도시의 밤(City Pop)", "레트로 감성", "청춘의 꿈", 
+    "사회적 메시지", "힙합 스웨그", "일상의 소소함", "몽환적인 밤", "여행과 자유", 
+    "짝사랑의 고백", "계절의 변화", "서사적 스토리텔링", "치유와 힐링", "파티와 축제"
+]
 
-def draw_overlay(width, height, kr_text, en_text, v_pos, kr_s, en_s, ls):
-    img = Image.new('RGB', (width, height), (55, 65, 55))
-    draw = ImageDraw.Draw(img)
-    f_kr, f_en = get_font(kr_s), get_font(en_s)
-    y_center = height * (v_pos / 100)
-    total_h = kr_s + ls + en_s
-    start_y = y_center - (total_h / 2)
-    # 한글(위) / 영어(아래) 줄바꿈 레이아웃 [Certain]
-    draw.text((width/2, start_y + (kr_s/2)), kr_text, font=f_kr, fill=(255,255,255), anchor="mm")
-    draw.text((width/2, start_y + kr_s + ls + (en_s/2)), en_text, font=f_en, fill=(210,210,210), anchor="mm")
-    return img
-
-def render_tab2():
-    # [수정] 겹침 방지를 위해 음수 마진 제거 및 가독성 확보 CSS
+def render_tab1():
+    # [확실함] UI 겹침 방지 및 가독성 확보 CSS
     st.markdown("""
         <style>
-        [data-testid="stVerticalBlock"] > div { margin-top: -5px !important; margin-bottom: 5px !important; }
-        .stSelectbox label, .stSlider label, .stTextInput label, .stTextArea label { 
-            margin-bottom: 2px !important; 
-            padding-top: 6px !important; 
-            font-size: 12px !important; 
-            font-weight: 600 !important;
+        [data-testid="stVerticalBlock"] > div { margin-top: -8px !important; margin-bottom: 0px !important; }
+        .stSelectbox label, .stTextInput label, .stTextArea label, .stRadio label { 
+            margin-bottom: 2px !important; padding-top: 6px !important; 
+            font-size: 12px !important; font-weight: 600 !important;
         }
         div[data-baseweb="select"] > div, .stTextInput input, .stTextArea textarea {
             height: 32px !important; min-height: 32px !important; font-size: 13px !important;
@@ -45,72 +28,32 @@ def render_tab2():
         </style>
     """, unsafe_allow_html=True)
 
-    l_col, r_col = st.columns([1, 2.3])
+    st.write("### ✍️ 가사 생성 상세 설정")
     
-    with l_col:
-        st.write("### 🖼️ 이미지 상세 설정")
-        aud_file = st.file_uploader("🎧 음원 업로드", type=['mp3', 'wav'])
-        if aud_file:
-            base = os.path.splitext(aud_file.name)[0]
-            if "_" in base:
-                parts = base.split('_')
-                st.session_state.in_kr, st.session_state.in_en = parts[0], parts[1] if len(parts) > 1 else ""
+    c1, c2 = st.columns(2)
+    with c1:
+        genre = st.radio("📂 음악 장르", ["CCM", "대중음악"], horizontal=True, key="genre_sel")
+    with c2:
+        style_list = CCM_STYLES if genre == "CCM" else POP_STYLES
+        selected_style = st.selectbox(f"🎵 {genre} 스타일 (15종+)", style_list, key="style_sel")
 
-        t_kr = st.text_input("📌 한글 제목", key="in_kr")
-        t_en = st.text_input("📌 영문 제목", key="in_en")
-        st.text_area("📝 가사 무드", value=st.session_state.get('gen_lyrics', ""), height=80, key="in_l")
+    c3, c4 = st.columns([1, 1])
+    with c3:
+        subject = st.text_input("💡 핵심 키워드", placeholder="예: 하나님의 사랑, 첫사랑", key="l_subject")
+    with c4:
+        mood = st.selectbox("🌈 전체적 무드", ["밝고 희망찬", "차분하고 정적인", "웅장하고 힘있는", "서정적인"], key="l_mood")
 
-        st.divider()
-        num_s = st.slider("✂️ 쇼츠 추가", 0, 5, 2, key="n_s")
-        st.selectbox("🎨 예술 스타일", STYLE_LIST, key="s_st")
-        st.selectbox("💡 조명 효과", LIGHT_LIST, key="s_li")
-        st.selectbox("📷 카메라 앵글", CAM_LIST, key="s_ca")
+    user_input = st.text_area("📝 곡의 배경이나 가사에 담고 싶은 내용", height=150, key="l_input")
 
-        if st.button("🚀 이미지 생성 시작", type="primary", use_container_width=True):
-            st.session_state.is_generated = True
-            st.session_state.imgs_data = [{"label": "메인 (16:9)", "w": 1280, "h": 720}, {"label": "틱톡 (9:16)", "w": 720, "h": 1280}] + \
-                                         [{"label": f"쇼츠 {i+1}", "w": 720, "h": 1280} for i in range(num_s)]
+    st.divider()
+    if st.button("🚀 AI 가사 생성 시작", type="primary", use_container_width=True):
+        if not user_input:
+            st.warning("내용을 입력해주세요.")
+            return
+        with st.spinner("가사 생성 중..."):
+            # 실제 API 호출 전 세션 저장 (예시)
+            st.session_state.gen_lyrics = f"[{genre} - {selected_style}]\n주제: {subject}\n\n(생성된 가사 본문...)"
+            st.success("완료!")
 
-    with r_col:
-        if st.session_state.get('is_generated'):
-            all_imgs = st.session_state.get('imgs_data', [])
-            
-            # 1. 메인 이미지 (이미지 왼쪽 / 조절바 오른쪽)
-            m_item = all_imgs[0]
-            with st.container(border=True):
-                c_i, c_c = st.columns([1.5, 1])
-                with c_c:
-                    st.write(f"**{m_item['label']}**")
-                    v_0 = st.slider("위치", 0, 100, 50, key="v_0")
-                    sk_0 = st.slider("한글 크기", 10, 200, 60, key="sk_0")
-                    se_0 = st.slider("영어 크기", 10, 200, 40, key="se_0")
-                    ls_0 = st.slider("줄 간격", 0, 100, 20, key="ls_0")
-                    st.selectbox("한글 폰트", KR_FONTS, key="fk_0")
-                    st.selectbox("영어 폰트", EN_FONTS, key="fe_0")
-                with c_i:
-                    st.image(draw_overlay(m_item['w'], m_item['h'], t_kr, t_en, v_0, sk_0, se_0, ls_0), use_column_width=True)
-
-            # [복구] 2. 세로 규격 콤팩트 배치 (3열 및 우측 조절바)
-            st.write("**📱 세로 규격 (9:16) - 3열 배치**")
-            v_cols = st.columns(3)
-            for idx, item in enumerate(all_imgs[1:]):
-                r_idx = idx + 1
-                with v_cols[idx % 3]:
-                    with st.container(border=True):
-                        st.write(f"<p style='font-size:10px; font-weight:bold;'>{item['label']}</p>", unsafe_allow_html=True)
-                        # 이미지 출력
-                        v = st.session_state.get(f"v_{r_idx}", 50)
-                        sk = st.session_state.get(f"sk_{r_idx}", 45)
-                        se = st.session_state.get(f"se_{r_idx}", 30)
-                        ls = st.session_state.get(f"ls_{r_idx}", 15)
-                        st.image(draw_overlay(item['w'], item['h'], t_kr, t_en, v, sk, se, ls), use_column_width=True)
-                        
-                        # [복구] 조절바 (라벨 최소화하여 이미지 아래 배치)
-                        st.slider("V", 0, 100, 50, key=f"v_{r_idx}")
-                        st.slider("KR", 10, 200, 45, key=f"sk_{r_idx}")
-                        st.slider("EN", 10, 200, 30, key=f"se_{r_idx}")
-                        st.slider("L", 0, 100, 15, key=f"ls_{r_idx}")
-                        st.selectbox("F_K", KR_FONTS, key=f"fk_{r_idx}")
-                        st.selectbox("F_E", EN_FONTS, key=f"fe_{r_idx}")
-        else:
-            st.info("👈 설정을 마친 후 생성을 시작하세요.")
+    if st.session_state.get('gen_lyrics'):
+        st.session_state.gen_lyrics = st.text_area("📝 생성된 가사 편집", value=st.session_state.get('gen_lyrics'), height=250, key="l_edit")
