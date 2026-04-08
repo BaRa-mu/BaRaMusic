@@ -12,7 +12,7 @@ st.markdown("""
     }
     /* 라디오 버튼 위치 위로 강제 인상 */
     div.row-widget.stRadio {
-        margin-top: -45px !important;
+        margin-top: -100px !important;
     }
     /* 메뉴 사이 간격 및 여백 제로화 */
     hr {
