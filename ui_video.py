@@ -1,8 +1,21 @@
 import streamlit as st
 
 def render_tab3():
-    # [왼쪽 사이드바] 상세 설정 드롭다운 메뉴들 배치
+    # 모든 입력을 왼쪽 사이드바에 배치
     with st.sidebar:
+        st.divider()
+        st.subheader("💡 영상 연출 주제")
+        vid_subject = st.text_input("주제 입력", placeholder="영상 연출 주제 입력", key="v_subject", label_visibility="collapsed")
+        
+        st.divider()
+        st.subheader("📂 참고 파일 업로드")
+        uploaded_vid = st.file_uploader("Browse files", type=["png", "jpg", "jpeg", "mp4", "mov"], key="vid_uploader", label_visibility="collapsed")
+        
+        st.divider()
+        st.subheader("🏷️ 영상 제목 (입력)")
+        vid_title_input = st.text_input("Video Title", placeholder="영상 제목 입력", key="vid_title_input_field", label_visibility="collapsed")
+        
+        st.divider()
         st.subheader("🎬 영상 상세 설정")
         vid_style = st.selectbox(
             "🎨 영상 스타일",
@@ -12,7 +25,6 @@ def render_tab3():
         vid_motion = st.select_slider(
             "🎥 모션 강도", 
             options=["정적인", "부드러운", "역동적인", "매우 강렬한"],
-            value="부드러운",
             key="v_motion_slider"
         )
         vid_camera = st.selectbox(
@@ -25,38 +37,16 @@ def render_tab3():
         st.divider()
         gen_vid_btn = st.button("🚀 AI 영상 프롬프트 생성", type="primary", use_container_width=True)
 
-    # --- [오른쪽 메인 화면: 원래대로 복구] ---
-    # 복구 1: 영상 주제 입력창
-    st.subheader("💡 영상 연출 주제")
-    vid_subject = st.text_input("영상 주제", placeholder="영상 연출 주제 입력", key="v_subject", label_visibility="collapsed")
-    
-    st.divider()
-    
-    # 복구 2: 파일 업로드 칸 (Browse files)
-    st.subheader("📂 참고 파일 업로드")
-    uploaded_vid = st.file_uploader("Browse files", type=["png", "jpg", "jpeg", "mp4", "mov"], key="vid_uploader", label_visibility="collapsed")
-    
-    st.divider()
-    
-    # 복구 3: 영상 제목 입력 란
-    st.subheader("🏷️ 영상 제목 (입력)")
-    vid_title_input = st.text_input("Video Title", placeholder="영상 제목 입력", key="vid_title_input_field", label_visibility="collapsed")
-    
-    st.divider()
-
-    # 결과 출력 영역
+    # --- 오른쪽 메인 화면: 결과 출력 ---
     if gen_vid_btn or st.session_state.get('vid_ready'):
         st.session_state.vid_ready = True
         
-        # [결과 고정] 제목: 한글_영어제목 형식
+        # 제목: 한글_영어제목 형식
         res_vid_title_head = vid_title_input if vid_title_input else vid_subject
         st.session_state.res_vid_title = f"{res_vid_title_head}_Cinematic_Motion_Vision"
-        
-        # [프롬프트 생성] 상세 옵션 반영
         st.session_state.res_vid_prompt = (
-            f"Cinematic {vid_length} video showing {vid_subject}. Style: {vid_style}. "
-            f"Camera movement: {vid_camera} with {vid_motion} intensity. "
-            f"Fluid motion, professional color grading, visual effects."
+            f"Cinematic {vid_length} video of {vid_subject}. Style: {vid_style}. "
+            f"Motion: {vid_motion}, Camera: {vid_camera}. High-end production quality, 4k."
         )
 
         st.subheader("🏷️ 확정 영상 제목 (한글_영어제목)")
@@ -64,8 +54,8 @@ def render_tab3():
         
         st.divider()
         st.subheader("📽️ AI 영상 제작 프롬프트")
-        st.text_area("Video Prompt Box", value=st.session_state.res_vid_prompt, height=200, key="vid_prompt_view", label_visibility="collapsed")
+        st.text_area("Video Prompt Box", value=st.session_state.res_vid_prompt, height=250, key="vid_prompt_view", label_visibility="collapsed")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_vid_prompt, language="text")
     else:
-        st.info("👈 왼쪽 사이드바에서 설정을 마치고 생성 버튼을 눌러주세요. 필요시 파일을 업로드하세요.")
+        st.info("👈 왼쪽 사이드바에서 모든 설정을 마친 뒤 생성 버튼을 눌러주세요.")
