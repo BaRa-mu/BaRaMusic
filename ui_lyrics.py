@@ -22,7 +22,7 @@ def render_tab1():
     st.markdown("""
         <style>
         /* 음수 마진 제거하여 겹침 방지 */
-        [data-testid="stVerticalBlock"] > div { margin-top: 0px !important; margin-bottom: 8px !important; }
+        [data-testid="stVerticalBlock"] > div { margin-top: 5px !important; margin-bottom: 8px !important; }
         
         /* 슬림한 박스 디자인 (32px) 유지 */
         div[data-baseweb="select"] > div, .stTextInput input {
