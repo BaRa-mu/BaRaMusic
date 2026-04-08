@@ -1,8 +1,21 @@
 import streamlit as st
 
 def render_tab2():
-    # [왼쪽 사이드바] 상세 설정 드롭다운 메뉴들 배치
+    # 모든 입력을 왼쪽 사이드바에 배치
     with st.sidebar:
+        st.divider()
+        st.subheader("💡 이미지 주제")
+        img_subject = st.text_input("주제 입력", placeholder="이미지의 핵심 주제 입력", key="i_subject", label_visibility="collapsed")
+        
+        st.divider()
+        st.subheader("📂 참고 파일 업로드")
+        uploaded_file = st.file_uploader("Browse files", type=["png", "jpg", "jpeg"], key="img_uploader", label_visibility="collapsed")
+        
+        st.divider()
+        st.subheader("🏷️ 이미지 제목 (입력)")
+        img_title_input = st.text_input("Image Title", placeholder="이미지 제목 입력 (예: 은혜의 아침)", key="img_title_input_field", label_visibility="collapsed")
+        
+        st.divider()
         st.subheader("🎨 이미지 상세 설정")
         img_style = st.selectbox(
             "🎭 화풍 선택", 
@@ -19,39 +32,16 @@ def render_tab2():
         st.divider()
         gen_img_btn = st.button("🚀 AI 이미지 프롬프트 생성", type="primary", use_container_width=True)
 
-    # --- [오른쪽 메인 화면: 원래대로 복구] ---
-    # 복구 1: 이미지 주제 입력창
-    st.subheader("💡 이미지 주제")
-    img_subject = st.text_input("이미지 주제", placeholder="이미지의 핵심 주제 입력", key="i_subject", label_visibility="collapsed")
-    
-    st.divider()
-    
-    # 복구 2: 파일 업로드 칸 (Browse files)
-    st.subheader("📂 참고 파일 업로드")
-    uploaded_file = st.file_uploader("Browse files", type=["png", "jpg", "jpeg"], key="img_uploader", label_visibility="collapsed")
-    
-    st.divider()
-    
-    # 복구 3: 이미지 제목 입력 란
-    st.subheader("🏷️ 이미지 제목 (입력)")
-    img_title_input = st.text_input("Image Title", placeholder="이미지 제목 입력 (예: 은혜의 아침)", key="img_title_input_field", label_visibility="collapsed")
-    
-    st.divider()
-
-    # 결과 출력 영역
+    # --- 오른쪽 메인 화면: 결과 출력 ---
     if gen_img_btn or st.session_state.get('img_ready'):
         st.session_state.img_ready = True
         
-        # [결과 고정] 제목: 한글_영어제목 형식
-        # 사용자가 입력한 제목이 있으면 그것을 반영
-        res_title_head = img_title_input if img_title_input else subject
+        # 제목: 한글_영어제목 형식
+        res_title_head = img_title_input if img_title_input else img_subject
         st.session_state.res_img_title = f"{res_title_head}_Visual_Art_Concept"
-        
-        # [프롬프트 생성] 상세 옵션 반영
         st.session_state.res_img_prompt = (
-            f"A high-quality masterpiece of {img_subject}. Style: {img_style}. "
-            f"Overall atmosphere is {img_mood}. Optimization for {img_ratio} aspect ratio. "
-            f"Cinematic lighting, detailed textures, trending on artstation."
+            f"A high-quality masterpiece of {img_subject}. Style: {img_style}. Mood: {img_mood}. "
+            f"Optimized for {img_ratio} ratio. Cinematic lighting, 8k, professional digital art."
         )
 
         st.subheader("🏷️ 확정 이미지 제목 (한글_영어제목)")
@@ -59,8 +49,8 @@ def render_tab2():
         
         st.divider()
         st.subheader("🖼️ 생성 이미지 프롬프트")
-        st.text_area("Image Prompt Box", value=st.session_state.res_img_prompt, height=200, key="img_prompt_view", label_visibility="collapsed")
+        st.text_area("Image Prompt Box", value=st.session_state.res_img_prompt, height=250, key="img_prompt_view", label_visibility="collapsed")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_img_prompt, language="text")
     else:
-        st.info("👈 왼쪽 사이드바에서 설정을 마치고 생성 버튼을 눌러주세요. 필요시 참고 파일을 업로드하세요.")
+        st.info("👈 왼쪽 사이드바에서 주제를 입력하고 설정을 마친 뒤 생성 버튼을 눌러주세요.")
