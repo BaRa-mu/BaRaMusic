@@ -116,8 +116,8 @@ def render_tab1():
             st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
         with col_r:
             st.markdown("**[가사 수정 및 편집]**")
--           st.text_area("편집창", value=st.session_state.res_lyrics, height=1500, key="lyrics_final_view", label_visibility="collapsed")
-+           st.text_area("편집창", value=st.session_state.res_lyrics, height=3000, key="lyrics_final_view", label_visibility="collapsed")
+-           st.text_area("편집창", value=st.session_state.res_lyrics, key="lyrics_final_view", label_visibility="collapsed")
++           st.text_area("편집창", value=st.session_state.res_lyrics, key="lyrics_final_view", label_visibility="collapsed")
         if st.button("📋 가사 복사"):
             st.code(st.session_state.res_lyrics, language="text")
         st.divider()
