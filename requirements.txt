@@ -1,5 +1,6 @@
 streamlit
 requests
+google-generativeai
 moviepy==1.0.3
 Pillow
 numpy
