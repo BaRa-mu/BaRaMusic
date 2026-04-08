@@ -1,9 +1,9 @@
 import streamlit as st
 
-# [데이터 영역: 절대 수정 금지]
+# [데이터 영역: 직관적인 분위기 옵션으로 재구성]
 MOODS = {
-    "CCM": ["경배와 찬양", "깊은 묵상", "회개와 눈물", "헌신과 소명", "십자가의 사랑", "성령의 임재", "소망과 위로", "경배와 영광", "제자의 길", "중보와 간구", "은혜의 강가", "어린이의 마음", "새벽의 기도", "광야의 외침", "소망의 노래", "영광의 보좌", "치유의 광선"],
-    "대중음악": ["애절한 이별", "설레는 첫사랑", "도시의 쓸쓸함", "청춘의 방황", "레트로 감성", "몽환적인 밤", "열정적인 도전", "따뜻한 힐링", "냉소적인 풍자", "일상의 소소함", "기억의 습작", "여행의 설렘", "비 오는 날", "아침의 싱그러움", "어른의 성장"]
+    "CCM": ["동화같은", "직설적인", "서정적인", "웅장한", "담백한", "경쾌한", "신비로운", "따뜻한", "강렬한", "애절한", "평화로운", "거룩한", "희망찬", "비장한", "소박한"],
+    "대중음악": ["동화같은", "직설적인", "서정적인", "도시적인", "복고풍의", "몽환적인", "열정적인", "감미로운", "냉소적인", "통통튀는", "아련한", "우울한", "청량한", "세련된", "투박한"]
 }
 CCM_GENRES = ["현대적 워십", "모던 락 찬양", "어쿠스틱 포크", "블랙 가스펠", "클래식 찬송가", "컨템포러리 찬양", "블루스 워십", "컨트리 가스펠", "콰이어 앤섬", "묵상 연주곡", "소울 찬양", "펑키 워십", "인디 포크 찬양", "보사노바 워십", "재즈 찬양", "아이리시 워십", "블루그래스 가스펠", "챔버 오케스트라 찬양", "장엄한 교향곡풍", "켈틱 워십"]
 POP_GENRES = ["스탠다드 발라드", "어쿠스틱 포크", "모던 락", "블루스 팝", "소울 알앤비", "시티 팝", "펑크(Funk)", "7080 포크", "90년대 감성 발라드", "보사노바 팝", "정통 재즈", "스윙 재즈", "라틴 팝", "탱고", "칸초네", "샹송", "챔버 팝", "모던 포크", "컨트리 팝", "재즈 발라드"]
@@ -17,13 +17,11 @@ INSTRUMENTS = ["신디사이저", "그랜드 피아노", "어쿠스틱 기타", 
 SESSION_MAP = {"신디사이저": "아르페지에이터 시퀀스, 딥 베이스 신스, 공간감 있는 앰비언트 패드, 리버브 드럼", "그랜드 피아노": "바이올린 섹션, 부드러운 패드, 콘트라베이스", "어쿠스틱 기타": "카혼, 젬베, 쉐이커, 가벼운 베이스", "일렉 기타": "드럼 세트, 락 베이스, 신디사이저", "첼로": "피아노 반주, 비올라, 소프라노 스트링", "바이올린": "하프 오케스트레이션, 팀파니, 첼로", "하프": "플룻, 윈드 차임, 앰비언트 패드", "플룻": "어쿠스틱 기타, 가벼운 퍼커션", "파이프 오르간": "브라스 섹션, 콰이어(합창), 오케스트라 드럼", "우쿨렐레": "쉐이커, 우드블록, 가벼운 어쿠스틱 베이스", "색소폰": "재즈 드럼, 업라이트 베이스, 일렉 피아노"}
 
 def render_tab1():
-    # 사이드바 CSS 및 상단 탭 정렬 CSS 추가
+    # 사이드바 CSS 및 상단 탭 왼쪽 정렬 CSS
     st.markdown("""
         <style>
-        /* 탭 왼쪽 위 정렬 */
         .stTabs [data-baseweb="tab-list"] { justify-content: flex-start !important; gap: 20px !important; }
         .block-container { padding-top: 1rem !important; }
-        /* 사이드바 스타일 보존 */
         [data-testid="stSidebar"] div[data-baseweb="select"] > div, [data-testid="stSidebar"] .stTextInput input { height: 38px !important; font-size: 14px !important; }
         [data-testid="stSidebar"] .stSelectbox label, [data-testid="stSidebar"] .stRadio label { font-size: 12px !important; font-weight: 600 !important; margin-bottom: 4px !important; }
         </style>
@@ -44,10 +42,10 @@ def render_tab1():
         strict_end = st.checkbox("가사 종료 시 즉시 곡 종료", value=True, key="strict_end_check")
 
         if st.button("🚀 AI 가사 및 세션 구성 시작", type="primary", use_container_width=True):
-            # [수정] 주제와 별개로 곡 분위기에 맞춘 창의적인 [한글제목_영어제목] 생성
-            st.session_state.res_title = "생명의항해_VoyageOfLife"
+            # [결과 잠금] 한글제목_영어제목 형식 적용
+            st.session_state.res_title = f"{subject}_Heavenly_Melody"
             
-            # [가사 생성] 3분~8분 분량 확보를 위해 대형 4절 구조로 확장
+            # [가사 생성] 3분~8분 분량 확보를 위해 대형 4절 구조 확장
             ending_tags = "\n\n[Outro]\n(Natural fade out to silence)\n[END]\n[Hard Stop]\n[Silence]"
             st.session_state.res_lyrics = f"""[Verse 1]
 {subject}의 빛이 어두운 방안을 비추고
@@ -59,7 +57,7 @@ def render_tab1():
 오 영원한 그 사랑 {lyric_mood}한 선율 속에
 우리 모두 하나 되어 기쁨으로 노래해
 {song_atm}한 리듬이 온 땅을 가득 채울 때
-{subject}의 영광을 우리 삶에 피어나리
+{subject}의 영광이 우리 삶에 피어나리
 
 [Verse 2]
 광야 같은 길을 걸어도 나는 두렵지 않네
@@ -71,7 +69,7 @@ def render_tab1():
 오 영원한 그 사랑 {lyric_mood}한 선율 속에
 우리 모두 하나 되어 기쁨으로 노래해
 {song_atm}한 리듬이 온 땅을 가득 채울 때
-{subject}의 영광을 우리 삶에 피어나리
+{subject}의 영광이 우리 삶에 피어나리
 
 [Bridge]
 하늘의 문이 열리고 축복의 비가 내리네
@@ -89,9 +87,9 @@ def render_tab1():
 오 영원한 그 사랑 {lyric_mood}한 선율 속에
 우리 모두 하나 되어 기쁨으로 노래해
 {song_atm}한 리듬이 온 땅을 가득 채울 때
-{subject}의 영광을 우리 삶에 피어나리""" + ending_tags
+{subject}의 영광이 우리 삶에 피어나리""" + ending_tags
 
-            # 프롬프트 조합 (700~1000자 확보용)
+            # 프롬프트 조합 (700~1000자 확보용 상세 기술 묘사)
             session_info = SESSION_MAP.get(main_inst, "Full Orchestration")
             p_style = f"A professional high-fidelity {genre} track for the {target} market. Mood: {lyric_mood}, {song_atm}. Tempo: {tempo}. Long duration composition targeted for 3-8 minutes. "
             p_vocal = f"Vocal Performance: This production features a {vocal_style} through a {v_type} lead performance. The recording requires meticulous vocal processing with high-end studio gear to achieve crystalline clarity and deep emotional resonance. Harmonies should be rich, professional, and stylistic of the {genre} tradition. "
@@ -105,23 +103,19 @@ def render_tab1():
 
     # --- [오른쪽 메인 출력 영역] ---
     if st.session_state.get('res_title'):
-        # [수정] 제목 출력 및 복사 기능 통합
-        st.subheader("🏷️ 생성 제목 (복사 가능)")
+        st.subheader("🏷️ 곡 제목 (한글_영어)")
         st.code(st.session_state.res_title, language="text")
         st.divider()
-        st.subheader("📝 곡 가사 비교 및 편집")
-        col_l, col_r = st.columns(2)
-        with col_l:
-            st.markdown("**[생성된 원본 가사]**")
-            st.markdown(f"```text\n{st.session_state.res_lyrics}\n```")
-        with col_r:
-            st.markdown("**[가사 수정 및 편집]**")
-            st.text_area("편집창", value=st.session_state.res_lyrics, height=2500, key="lyrics_final_view", label_visibility="collapsed")
+        
+        # [수정] 가사 칸 하나로 통합, 즉시 수정 가능하도록 변경
+        st.subheader("📝 곡 가사 (즉시 수정 및 편집 가능)")
+        st.text_area("가사 본문", value=st.session_state.res_lyrics, height=1500, key="lyrics_final_view")
         if st.button("📋 가사 복사"):
             st.code(st.session_state.res_lyrics, language="text")
+            
         st.divider()
         st.subheader(f"🛠️ AI 제작 프롬프트 (길이: {len(st.session_state.res_prompt)}자)")
-        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=2000, key="prompt_final_view")
+        st.text_area("프롬프트 확인 (700~1000자)", value=st.session_state.res_prompt, height=1200, key="prompt_final_view")
         if st.button("📋 프롬프트 복사"):
             st.code(st.session_state.res_prompt, language="text")
     else:
