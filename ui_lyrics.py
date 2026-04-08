@@ -32,49 +32,47 @@ def render_tab1():
         vocal_style = st.selectbox(f"🗣️ {v_type} 스타일 상세", VOCALS[v_type], key="v_style_sel")
         main_inst = st.selectbox("🎹 메인 악기 선택", INSTRUMENTS, key="inst_sel")
         st.divider()
-        strict_end = st.checkbox("가사 종료 시 즉시 곡 종료", value=True)
+        strict_end = st.checkbox("가사 종료 시 즉시 곡 종료", value=True, key="strict_end_check")
 
         if st.button("🚀 AI 가사 및 세션 구성 시작", type="primary", use_container_width=True):
-            st.session_state.music_ready = True
+            # [결과 잠금 로직] 세션 스테이트에 모든 결과물 저장
+            eng_slug = "".join([c for c in subject if c.isalnum()]) # 영어 슬러그 생성
+            st.session_state.res_title = f"{subject}_{eng_slug if eng_slug else 'Track'}"
             
-            # 1. 제목 생성 (한글_영어)
-            eng_title = subject.replace(" ", "") + "_Track" # 단순 변환 로직
-            st.session_state.final_title = f"{subject}_{eng_title}"
-
-            # 2. 가사 생성 (종료 태그 포함)
+            # 가사 본문 생성
             ending_tags = "\n\n[Outro]\n(Natural fade out to silence)\n[END]\n[Hard Stop]\n[Silence]"
-            st.session_state.final_lyrics = f"[Verse 1]\n주님과 함께 하는 삶은 언제나 즐겁고 행복해\n그 길 위에서 우리는 꿈을 꾸네\n\n[Chorus]\n빛나는 하늘 아래 소망을 노래해\n{subject}의 은혜 속에 영원히 거하리" + ending_tags
+            st.session_state.res_lyrics = f"[Verse 1]\n{subject}의 향기가 바람에 실려와\n우리의 마음을 따뜻하게 감싸네\n그대와 함께 걷는 이 길 위에\n영원한 소망이 피어나리\n\n[Chorus]\n빛나는 하늘 아래 우리 노래해\n{lyric_mood}의 무드 속에 잠기네\n{song_atm}한 선율이 울려 퍼질 때\n{subject}의 진심을 전하리" + ending_tags
 
-            # 3. 프롬프트 생성 (700~1000자 강제 최적화)
-            session_info = SESSION_MAP.get(main_inst, "Standard Session")
-            base_prompt = f"Music Style: {genre}. Target: {target}. Mood: {lyric_mood} and {song_atm}. Tempo: {tempo}. Main Instrument: {main_inst}. "
-            vocal_info = f"Vocals: {v_type} lead with {vocal_style}. High-fidelity production, professional studio quality. "
-            session_details = f"Arrangement: AI-driven session setup including {session_info}. Emotional buildup with rich texture and balanced frequencies. "
-            technical_dir = "Audio Specs: 44.1kHz, Stereo, Mastered for streaming. Harmonic progression should follow the chosen mood strictly. No audio glitches, no distorted peaks. Smooth transitions between song sections. "
-            ending_constraints = "CRITICAL CONSTRAINT: NO looping, NO repeating sections after the lyrics end, NO 2nd song start, NO padding instrumental time. Natural fade out to silence strictly at the [END] tag. "
+            # 프롬프트 조합 (700~1000자 강제)
+            session_info = SESSION_MAP.get(main_inst, "Full Orchestration")
+            p_style = f"A professional high-fidelity {genre} track for {target} audience. Mood: {lyric_mood}, {song_atm}. Tempo: {tempo}. "
+            p_vocal = f"Vocal Direction: A {vocal_style} featuring {v_type} delivery. Focus on emotive expression, crystalline clarity, and professional-grade vocal processing. Ensure beautiful harmonies and appropriate stylistic ornaments characteristic of {genre}. "
+            p_inst = f"Instrumentation: Centered around {main_inst} as the lead harmonic guide. The arrangement includes {session_info}. The soundstage should be wide and immersive with premium acoustic textures. "
+            p_tech = "Production Quality: Studio-mastered audio, 24-bit depth, balanced EQ with warm lows and crisp highs. Natural reverb and spatial effects to enhance the fairytale-like atmosphere. "
+            p_end = f"Constraint: { 'NO looping, NO repeating sections after the lyrics end. Natural fade to silence immediately at the [END] tag. Strict duration control.' if strict_end else 'Natural progression.' } "
             
-            # 700자 이상을 위해 상세 설명 추가
-            filler = f"Further Details: This track is centered on the theme of '{subject}'. The emotional resonance should be maximized using {main_inst} as the primary harmonic guide. The {vocal_style} should deliver the message with profound clarity and passion. Ensure the {genre} characteristics are prominent, blending {lyric_mood} elements seamlessly. The track must feel cohesive, from the opening notes to the final fading chord, ensuring a fairytale-like yet grounded atmosphere as requested. "
+            # 길이 보정을 위한 상세 묘사 추가
+            p_detail = f"The composition must capture the essence of '{subject}' through a sophisticated harmonic progression. The {main_inst} should provide a rhythmic yet lyrical foundation, interacting seamlessly with the {vocal_style}. The overall vibe should be reminiscent of a polished studio recording, avoiding any digital artifacts or artificial loops. Every instrument in the {session_info} must have its own place in the mix, contributing to a cohesive and emotionally resonant experience. The bridge should build up the energy before a final, celebratory chorus that concludes with a definitive, natural silence as indicated by the outro tags. Do not restart the song or introduce new melodies once the lyrics are complete. "
             
-            full_prompt = base_prompt + vocal_info + session_details + technical_dir + ending_constraints + filler
-            # 1000자 조절 (필요 시 절삭)
-            st.session_state.final_prompt = full_prompt[:1000]
+            full_p = p_style + p_vocal + p_inst + p_tech + p_end + p_detail
+            st.session_state.res_prompt = full_p[:1000] # 1000자 상한선
 
-    # --- [오른쪽 메인 출력부] ---
-    st.title("🎼 AI 음악 제작 분석")
-    if st.session_state.get('music_ready'):
-        # 제목 출력
-        st.subheader(f"🏷️ 생성 파일명: {st.session_state.final_title}")
+    # --- [오른쪽 메인 출력 영역] ---
+    st.title("🎼 AI 음악 제작 분석 결과")
+    
+    if st.session_state.get('res_title'):
+        # 1. 제목 (한글_영어)
+        st.subheader(f"🏷️ 파일명: {st.session_state.res_title}")
         
-        # 가사 출력
+        # 2. 가사
         st.divider()
-        st.subheader("📝 생성된 가사")
-        st.text_area("가사 본문 (편집 가능)", value=st.session_state.final_lyrics, height=300, key="lyrics_out")
+        st.subheader("📝 생성 가사")
+        st.text_area("Lyric Box", value=st.session_state.res_lyrics, height=250, key="disp_lyrics")
         
-        # 프롬프트 출력 (700~1000자)
+        # 3. 프롬프트 (700~1000자)
         st.divider()
-        st.subheader(f"🛠️ AI 생성 프롬프트 (길이: {len(st.session_state.final_prompt)}자)")
-        st.info("이 프롬프트를 음악 생성 모델의 지시어로 사용하세요.")
-        st.text_area("프롬프트 본문 (복사 가능)", value=st.session_state.final_prompt, height=300, key="prompt_out")
+        st.subheader(f"🛠️ AI 생성 프롬프트 (현재 {len(st.session_state.res_prompt)}자)")
+        st.info("아래 프롬프트를 복사하여 AI 음악 생성기에 입력하십시오.")
+        st.text_area("Prompt Box", value=st.session_state.res_prompt, height=350, key="disp_prompt")
     else:
-        st.info("👈 왼쪽 사이드바에서 설정을 마친 후 생성 버튼을 눌러주세요.")
+        st.info("👈 왼쪽에서 설정을 마치고 'AI 가사 및 세션 구성 시작' 버튼을 눌러주세요.")
