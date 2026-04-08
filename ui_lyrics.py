@@ -3,11 +3,11 @@ import os
 import time
 
 def render_tab2():
-    # [1. 데이터 영역: 지시하신 대로 절대 고정]
+    # [1. 데이터 영역: 지시하신 대로 15개 이상 옵션 고정]
     STYLES = ["극사실주의 시네마틱", "디즈니 애니메이션 풍", "고전 유화 스타일", "투명한 수채화", "네온 사이버펑크", "신비로운 판타지 일러스트", "정밀한 연필 스케치", "현대적 3D 렌더링", "레트로 픽셀 아트", "추상적 미니멀리즘", "고딕 호러 스타일", "화려한 바로크 풍", "초현실주의 예술", "잉크 워시 수묵화", "팝아트 스타일"]
     MOODS = ["웅장하고 압도적인", "따뜻하고 포근한", "차가운 도시의", "몽환적이고 신비로운", "어두운 비장미", "밝고 희망찬", "빈티지하고 아련한", "평화롭고 정적인", "강렬하고 폭발적인", "애절하고 슬픈", "거룩하고 성스러운", "에너지 넘치는", "고독하고 쓸쓸한", "우아하고 고전적인", "신선하고 청량한"]
     LIGHTINGS = ["시네마틱 골든아워", "스튜디오 조명", "달빛 아래", "네온사인", "아침 햇살", "스포트라이트", "안개 조명", "촛불 빛", "화산 반사", "역광(Rim Light)", "하이키 조명", "로우키 조명", "창가 사선 빛", "오로라 광원", "심해의 푸른 빛"]
-    CAMERAS = ["와이드 파노라마", "매크로 샷", "버즈아이 뷰", "웜즈아이 뷰", "아이레벨", "더치 앵글", "오버더숄더", "피쉬아이", "아웃포커싱", "깊은 피사계 심도", "로모그래피", "소프트 포커스", "로우 앵글", "하이 앵글", "시점 샷(POV)"]
+    CAMERAS = ["와이드 파노라마", "매크로 샷", "버즈아이 뷰", "웜즈아이 뷰", "아이레벨", "더치 앵글", "오버더숄더", "피쉬아이", "아웃포커싱", "깊은 피사계 심도", "로모그래피 감성", "소프트 포커스", "로우 앵글", "하이 앵글", "시점 샷(POV)"]
 
     K_FONTS = [
         {"name": "나눔손글씨 붓", "family": "Nanum Brush Script"}, {"name": "나눔손글씨 펜", "family": "Nanum Pen Script"},
@@ -27,15 +27,16 @@ def render_tab2():
         {"name": "Yellowtail", "family": "Yellowtail"}, {"name": "Cookie", "family": "Cookie"},
         {"name": "Damion", "family": "Damion"}, {"name": "Handlee", "family": "Handlee"},
         {"name": "Merienda", "family": "Merienda"}, {"name": "Kaushan Script", "family": "Kaushan Script"},
-        {"name": "Mrs Saint Delafield", "family": "Mrs Saint Delafield"}
+        {"name": "Pinyon Script", "family": "Pinyon Script"}
     ]
 
     EFFECTS = ["강력한 화이트 글로우", "네온 핑크 광채", "블랙 쉐도우", "골든 샤인", "스모키 안개", "3D 입체", "크롬 메탈릭", "불꽃 효과", "얼음 파편", "글리치 노이즈", "유리 굴절", "외부 광채", "더블 그림자", "무지개 그라데이션", "다크 글로우"]
 
     # [2. 파싱 로직 콜백 함수 정의]
     def handle_parsing():
-        if st.session_state.img_audio_up_final:
-            fname = os.path.splitext(st.session_state.img_audio_up_final.name)[0]
+        f = st.session_state.img_audio_up_final
+        if f:
+            fname = os.path.splitext(f.name)[0]
             if "_" in fname:
                 k_p, e_p = fname.split("_", 1)
                 st.session_state['k_sync_val'] = k_p
@@ -48,15 +49,15 @@ def render_tab2():
     with st.sidebar:
         st.divider()
         st.subheader("📂 음원 파일 업로드")
-        # on_change 콜백을 사용하여 업로드 즉시 파싱 수행
+        # 콜백 함수(on_change)를 사용하여 업로드 즉시 파싱 수행
         st.file_uploader("Browse files", type=["mp3", "wav", "m4a"], key="img_audio_up_final", 
                          on_change=handle_parsing, label_visibility="collapsed")
 
         st.divider()
         st.subheader("🏷️ 이미지 제목 (자동 파싱)")
-        # 세션 스테이트의 값을 텍스트 인풋에 강제 할당
-        k_title = st.text_input("한글 제목", value=st.session_state.get('k_sync_val', ""), key="k_title_final_input")
-        e_title = st.text_input("영어 제목", value=st.session_state.get('e_sync_val', ""), key="e_title_final_input")
+        # 파싱된 제목을 value로 직접 연결
+        k_title = st.text_input("한글 제목", value=st.session_state.get('k_sync_val', ""), key="k_title_box")
+        e_title = st.text_input("영어 제목", value=st.session_state.get('e_sync_val', ""), key="e_title_box")
         
         st.divider()
         st.subheader("🎨 이미지 생성 상세 설정")
@@ -67,7 +68,7 @@ def render_tab2():
         
         st.divider()
         st.subheader("🎬 쇼츠 이미지 구성")
-        # 슬라이더 대신 숫자 입력 사용
+        # 숫자 입력 방식으로 교체
         shorts_count = st.number_input("쇼츠 이미지 개수 (0~5)", 0, 5, 0, step=1, key="shorts_num_in")
         
         st.divider()
@@ -86,7 +87,7 @@ def render_tab2():
         { "".join([f'li[id*="option-{i}"] {{ font-family: "{K_FONTS[i]["family"]}", cursive !important; }}' for i in range(len(K_FONTS))]) }
         { "".join([f'li[id*="option-{len(K_FONTS)+i}"] {{ font-family: "{E_FONTS[i]["family"]}", cursive !important; }}' for i in range(len(E_FONTS))]) }
 
-        /* 미리보기 프레임: 긴 면 520px 고정 및 회색 배경(#808080) */
+        /* 미리보기 프레임: 긴 면 520px 고정 및 회색 배경(#808080) 준수 */
         .preview-canvas {{
             position: relative;
             background-color: #808080; 
@@ -100,18 +101,16 @@ def render_tab2():
         .dim-16-9 {{ width: 520px; height: 292.5px; }}
         .dim-9-16 {{ width: 292.5px; height: 520px; }}
 
-        /* 제목 효과 (화이트 글로우 + 드롭쉐도우) */
+        /* 제목 효과 */
         .title-eff {{
             color: white; text-align: center; line-height: 1.2; pointer-events: none; z-index: 10;
             text-shadow: 0 0 15px rgba(255,255,255,1), 0 0 30px rgba(255,255,255,0.5), 2px 2px 5px rgba(0,0,0,1);
         }}
         
-        /* 효과 상세 옵션 */
-        .glow-white {{ text-shadow: 0 0 20px #fff, 2px 2px 4px #000; }}
-        .glow-neon {{ text-shadow: 0 0 15px #ff00ff, 0 0 30px #ff00ff, 2px 2px 2px #000; }}
-        .shadow-deep {{ text-shadow: 5px 5px 12px rgba(0,0,0,1); }}
+        .gl-white {{ text-shadow: 0 0 20px #fff, 2px 2px 4px #000; }}
+        .gl-neon {{ text-shadow: 0 0 15px #ff00ff, 0 0 30px #ff00ff, 2px 2px 2px #000; }}
+        .sh-deep {{ text-shadow: 5px 5px 12px rgba(0,0,0,1); }}
 
-        /* 다운로드 호버 */
         .dl-hover {{
             position: absolute; top: 15px; right: 15px;
             background: rgba(0,0,0,0.85); color: white; padding: 6px 14px;
@@ -123,7 +122,7 @@ def render_tab2():
 
     # --- [5. 화면 출력 영역] ---
     if not st.session_state.get('img_gen_done') and not gen_btn:
-        # [생성 전] 회색 배경 및 제목 중앙 배치
+        # [상태: 생성 전] 회색 배경 및 제목 중앙 배치
         st.markdown(f"""
             <div class="preview-canvas dim-16-9">
                 <div class="title-eff">
@@ -145,8 +144,8 @@ def render_tab2():
                     kf_idx = st.selectbox("한글 폰트", range(len(K_FONTS)), format_func=lambda x: K_FONTS[x]["name"], index=11, key=f"kf_{key_id}")
                     ef_idx = st.selectbox("English Font", range(len(E_FONTS)), format_func=lambda x: E_FONTS[x]["name"], index=0, key=f"ef_{key_id}")
                 with c2:
-                    ks = st.number_input("한글 크기", 10, 150, 55, key=f"ks_{key_id}")
-                    es = st.number_input("영어 크기", 10, 150, 35, key=f"es_{key_id}")
+                    ks = st.number_input("한글 크기", 10, 150, 50, key=f"ks_{key_id}")
+                    es = st.number_input("영어 크기", 10, 150, 30, key=f"es_{key_id}")
                 with c3:
                     px = st.number_input("좌우 위치 (%)", 0, 100, 50, key=f"x_{key_id}")
                     py = st.number_input("상하 위치 (%)", 0, 100, 50, key=f"y_{key_id}")
